@@ -1,0 +1,1663 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>D.Dog Lanches — Peça já</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bungee&family=Work+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root{
+    --bg:#0e0a09;
+    --panel:#1a1210;
+    --panel-2:#221714;
+    --line:#332320;
+    --ember:#ff5a1f;
+    --ember-2:#ff8a00;
+    --mustard:#ffc93c;
+    --cream:#f6ede2;
+    --cream-dim:#c9bbae;
+    --green:#3ecf78;
+    --red:#ff4d4d;
+    --blue:#4da3ff;
+    --radius:14px;
+    --shadow: 0 8px 28px rgba(0,0,0,.45);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 15% 0%, rgba(255,90,31,.10), transparent 40%),
+      radial-gradient(circle at 100% 20%, rgba(255,201,60,.06), transparent 45%),
+      var(--bg);
+    color:var(--cream);
+    font-family:'Work Sans', system-ui, sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  h1,h2,h3,.display{ font-family:'Bungee', system-ui, sans-serif; letter-spacing:.5px; }
+  button{ font-family:inherit; cursor:pointer; }
+  input,select,textarea{ font-family:inherit; }
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:#3a2a26; border-radius:8px; }
+
+  /* ---------- Header ---------- */
+  .topbar{
+    position:sticky; top:0; z-index:40;
+    background:linear-gradient(180deg, rgba(14,10,9,.98), rgba(14,10,9,.92));
+    backdrop-filter:blur(8px);
+    border-bottom:1px solid var(--line);
+    padding:10px 16px;
+  }
+  .topbar-inner{ max-width:1180px; margin:0 auto; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .brand{ display:flex; align-items:center; gap:10px; margin-right:auto; }
+  .brand-badge{
+    width:40px; height:40px; border-radius:50%;
+    background:radial-gradient(circle at 35% 30%, #2a1a15, #0c0705);
+    border:2px solid var(--ember);
+    display:flex; align-items:center; justify-content:center;
+    font-size:20px; box-shadow:0 0 14px rgba(255,90,31,.45);
+    flex-shrink:0;
+  }
+  .brand-text .display{ font-size:15px; color:var(--cream); line-height:1; }
+  .brand-text span{ font-size:10.5px; color:var(--mustard); letter-spacing:1.5px; text-transform:uppercase; }
+
+  .tabs{ display:flex; gap:6px; background:var(--panel); padding:5px; border-radius:12px; border:1px solid var(--line); }
+  .tab-btn{
+    border:none; background:transparent; color:var(--cream-dim);
+    padding:9px 14px; border-radius:8px; font-weight:700; font-size:13.5px;
+    display:flex; align-items:center; gap:7px; white-space:nowrap;
+    transition:.15s;
+  }
+  .tab-btn.active{ background:linear-gradient(135deg, var(--ember), var(--ember-2)); color:#1a0a02; box-shadow:0 4px 14px rgba(255,90,31,.35); }
+  .tab-btn:not(.active):hover{ background:var(--panel-2); color:var(--cream); }
+  .badge-dot{
+    background:var(--red); color:#fff; font-size:10.5px; font-weight:800;
+    min-width:18px; height:18px; border-radius:9px; display:flex; align-items:center; justify-content:center; padding:0 5px;
+  }
+  .staff-link{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--cream-dim);
+    padding:8px 12px; border-radius:10px; font-weight:700; font-size:12px; white-space:nowrap;
+  }
+  .staff-link:hover{ color:var(--cream); border-color:var(--ember-2); }
+
+  /* ---------- Layout ---------- */
+  .wrap{ max-width:1180px; margin:0 auto; padding:20px 16px 90px; }
+  .panel{ background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:18px; }
+  .section-title{ font-size:13px; text-transform:uppercase; letter-spacing:1.6px; color:var(--mustard); margin:0 0 12px; font-weight:700; }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; }
+  .grid{ display:grid; gap:12px; }
+
+  /* ---------- Order type toggle ---------- */
+  .type-toggle{ display:flex; gap:10px; margin-bottom:16px; }
+  .type-btn{
+    flex:1; padding:14px; border-radius:12px; border:1.5px solid var(--line); background:var(--panel-2);
+    color:var(--cream-dim); font-weight:700; font-size:14.5px; display:flex; flex-direction:column; align-items:center; gap:4px;
+  }
+  .type-btn .ic{ font-size:20px; }
+  .type-btn.active{ border-color:var(--ember); background:linear-gradient(135deg, rgba(255,90,31,.18), rgba(255,138,0,.08)); color:var(--cream); }
+
+  /* ---------- Tables grid ---------- */
+  .table-search{
+    width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line);
+    background:var(--panel-2); color:var(--cream); margin-bottom:12px; font-size:14px;
+  }
+  .tables-grid{ display:grid; grid-template-columns:repeat(10, 1fr); gap:6px; max-height:340px; overflow-y:auto; padding:4px; }
+  @media (max-width:700px){ .tables-grid{ grid-template-columns:repeat(6, 1fr); } }
+  .table-cell{
+    aspect-ratio:1; border-radius:8px; border:1px solid var(--line); background:var(--panel-2);
+    color:var(--cream-dim); font-weight:700; font-size:12.5px; display:flex; align-items:center; justify-content:center;
+    transition:.12s;
+  }
+  .table-cell:hover{ border-color:var(--ember-2); color:var(--cream); }
+  .table-cell.selected{ background:linear-gradient(135deg, var(--ember), var(--ember-2)); color:#1a0a02; border-color:transparent; box-shadow:0 3px 10px rgba(255,90,31,.4); }
+  .table-cell.occupied{ background:#2a1414; border-color:#5a2a2a; color:#c98080; }
+  .table-cell.occupied.selected{ background:linear-gradient(135deg, var(--ember), var(--ember-2)); color:#1a0a02; }
+
+  /* ---------- Forms ---------- */
+  .field{ display:flex; flex-direction:column; gap:6px; }
+  .field label{ font-size:12px; color:var(--cream-dim); font-weight:600; text-transform:uppercase; letter-spacing:.5px; }
+  .field input, .field textarea, .field select{
+    padding:11px 12px; border-radius:10px; border:1px solid var(--line); background:var(--panel-2); color:var(--cream); font-size:14.5px;
+  }
+  .field input:focus, .field textarea:focus, .field select:focus, .table-search:focus{ outline:none; border-color:var(--ember-2); }
+  .field textarea{ resize:vertical; min-height:60px; }
+  .checkline{ display:flex; align-items:center; gap:9px; padding:10px 12px; background:var(--panel-2); border:1px solid var(--line); border-radius:10px; }
+  .checkline input{ width:18px; height:18px; accent-color:var(--ember); }
+
+  /* ---------- Menu ---------- */
+  .cat-tabs{ display:flex; gap:6px; overflow-x:auto; padding-bottom:8px; margin-bottom:12px; }
+  .cat-tab{ padding:8px 14px; border-radius:20px; border:1px solid var(--line); background:var(--panel-2); color:var(--cream-dim); font-size:13px; font-weight:700; white-space:nowrap; }
+  .cat-tab.active{ background:var(--mustard); color:#1a0a02; border-color:transparent; }
+  .menu-item{
+    display:flex; justify-content:space-between; align-items:center; gap:10px;
+    padding:12px; border:1px solid var(--line); border-radius:12px; background:var(--panel-2); margin-bottom:8px;
+  }
+  .menu-item-name{ font-weight:700; font-size:14.5px; }
+  .menu-item-price{ color:var(--mustard); font-family:'JetBrains Mono',monospace; font-size:13.5px; margin-top:2px; }
+  .add-btn{
+    background:linear-gradient(135deg, var(--ember), var(--ember-2)); color:#1a0a02; border:none;
+    width:34px; height:34px; border-radius:50%; font-size:18px; font-weight:800; flex-shrink:0;
+  }
+  .add-btn:active{ transform:scale(.92); }
+
+  /* ---------- Cart ---------- */
+  .cart{ position:sticky; bottom:0; margin-top:16px; }
+  .cart-panel{ background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px; box-shadow:var(--shadow); }
+  .cart-line{ display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 0; border-bottom:1px dashed var(--line); }
+  .cart-line:last-of-type{ border-bottom:none; }
+  .qty-ctrl{ display:flex; align-items:center; gap:8px; }
+  .qty-ctrl button{ width:26px; height:26px; border-radius:6px; border:1px solid var(--line); background:var(--panel-2); color:var(--cream); font-weight:800; }
+  .cart-total{ display:flex; justify-content:space-between; align-items:center; font-size:18px; font-weight:800; padding-top:10px; margin-top:6px; }
+  .cart-total .display{ color:var(--mustard); font-size:20px; }
+  .btn-primary{
+    width:100%; padding:14px; border-radius:12px; border:none; margin-top:12px;
+    background:linear-gradient(135deg, var(--ember), var(--ember-2)); color:#1a0a02; font-weight:800; font-size:15px;
+    box-shadow:0 6px 18px rgba(255,90,31,.35);
+  }
+  .btn-primary:disabled{ opacity:.4; box-shadow:none; }
+  .btn-ghost{ background:var(--panel-2); border:1px solid var(--line); color:var(--cream); padding:10px 14px; border-radius:10px; font-weight:700; font-size:13px; }
+  .obs-input{ width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--line); background:var(--bg); color:var(--cream); font-size:12.5px; margin-top:6px; }
+  .payment-note{ font-size:11px; color:var(--cream-dim); margin-top:6px; line-height:1.5; }
+
+  /* ---------- Caixa / Kanban ---------- */
+  .kanban{ display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; }
+  @media (max-width:900px){ .kanban{ grid-template-columns:1fr; } }
+  .col{ background:var(--panel); border:1px solid var(--line); border-radius:var(--radius); padding:12px; min-height:120px; }
+  .col-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .col-title{ font-size:12.5px; text-transform:uppercase; letter-spacing:1px; font-weight:800; }
+  .col-count{ background:var(--panel-2); font-size:11.5px; font-weight:800; padding:2px 8px; border-radius:10px; color:var(--cream-dim); }
+  .col.novo .col-title{ color:var(--ember-2); }
+  .col.preparo .col-title{ color:var(--mustard); }
+  .col.pronto .col-title{ color:var(--green); }
+  .col.entregue .col-title{ color:var(--cream-dim); }
+
+  .order-card{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:11px; margin-bottom:9px;
+    cursor:pointer; transition:.12s;
+  }
+  .order-card:hover{ border-color:var(--ember-2); }
+  .order-card.pulse{ animation:pulseCard 1.1s ease-in-out infinite; border-color:var(--ember); }
+  @keyframes pulseCard{ 0%,100%{ box-shadow:0 0 0 0 rgba(255,90,31,.5);} 50%{ box-shadow:0 0 0 6px rgba(255,90,31,0);} }
+  .oc-top{ display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; }
+  .oc-num{ font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--mustard); font-size:13px; }
+  .oc-tag{ font-size:10.5px; padding:2px 7px; border-radius:6px; font-weight:800; text-transform:uppercase; }
+  .oc-tag.mesa{ background:rgba(77,163,255,.15); color:var(--blue); }
+  .oc-tag.delivery{ background:rgba(62,207,120,.15); color:var(--green); }
+  .oc-tag.novo{ background:rgba(255,138,0,.18); color:var(--ember-2); }
+  .oc-tag.preparo{ background:rgba(255,201,60,.18); color:var(--mustard); }
+  .oc-tag.pronto{ background:rgba(62,207,120,.18); color:var(--green); }
+  .oc-tag.entregue{ background:rgba(201,187,174,.15); color:var(--cream-dim); }
+  .oc-info{ font-size:13.5px; font-weight:700; margin-bottom:3px; }
+  .oc-items{ font-size:12px; color:var(--cream-dim); line-height:1.5; }
+  .oc-foot{ display:flex; justify-content:space-between; align-items:center; margin-top:7px; }
+  .oc-total{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:13px; }
+  .oc-time{ font-size:11px; color:var(--cream-dim); }
+
+  .empty-col{ text-align:center; color:var(--cream-dim); font-size:12.5px; padding:20px 6px; opacity:.6; }
+
+  /* ---------- Modal ---------- */
+  .modal-bg{ position:fixed; inset:0; background:rgba(6,4,3,.72); backdrop-filter:blur(3px); z-index:100; display:flex; align-items:center; justify-content:center; padding:16px; }
+  .modal{ background:var(--panel); border:1px solid var(--line); border-radius:16px; max-width:440px; width:100%; max-height:88vh; overflow-y:auto; padding:20px; box-shadow:var(--shadow); }
+  .modal-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+  .modal-close{ background:var(--panel-2); border:none; color:var(--cream); width:30px; height:30px; border-radius:50%; font-size:16px; }
+  .status-row{ display:flex; gap:8px; margin:14px 0; flex-wrap:wrap; }
+  .status-pill{ flex:1; min-width:80px; padding:9px 6px; border-radius:9px; border:1px solid var(--line); background:var(--panel-2); color:var(--cream-dim); font-weight:700; font-size:12px; }
+  .status-pill.current{ background:linear-gradient(135deg, var(--ember), var(--ember-2)); color:#1a0a02; border-color:transparent; }
+  .detail-line{ display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px dashed var(--line); font-size:13.5px; gap:10px; }
+  .detail-line:last-child{ border-bottom:none; }
+  .modal-actions{ display:flex; gap:8px; margin-top:16px; }
+  .modal-actions button{ flex:1; padding:12px; border-radius:10px; border:none; font-weight:800; font-size:13.5px; }
+  .btn-print{ background:var(--mustard); color:#1a0a02; }
+  .btn-advance{ background:linear-gradient(135deg, var(--ember), var(--ember-2)); color:#1a0a02; }
+
+  /* ---------- Cardapio admin ---------- */
+  .admin-item{ display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+  .admin-item input{ padding:9px 10px; border-radius:8px; border:1px solid var(--line); background:var(--panel-2); color:var(--cream); font-size:13.5px; }
+  .admin-item input.name{ flex:1; }
+  .admin-item input.price{ width:90px; font-family:'JetBrains Mono',monospace; }
+  .icon-btn{ background:var(--panel-2); border:1px solid var(--line); color:var(--red); width:32px; height:32px; border-radius:8px; font-size:15px; flex-shrink:0; }
+  .cat-block{ margin-bottom:20px; }
+  .cat-block-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; }
+
+  .toast{
+    position:fixed; top:74px; right:16px; z-index:200; background:var(--panel); border:1px solid var(--ember);
+    padding:12px 16px; border-radius:10px; box-shadow:var(--shadow); font-size:13.5px; font-weight:700;
+    display:flex; align-items:center; gap:8px; animation:toastIn .25s ease; max-width:320px;
+  }
+  @keyframes toastIn{ from{ opacity:0; transform:translateY(-8px);} to{ opacity:1; transform:translateY(0);} }
+
+  .empty-state{ text-align:center; padding:50px 20px; color:var(--cream-dim); }
+  .empty-state .ic{ font-size:38px; margin-bottom:10px; }
+
+  .confirm-screen{ text-align:center; padding:40px 20px; }
+  .confirm-num{ font-family:'JetBrains Mono',monospace; font-size:42px; font-weight:700; color:var(--mustard); margin:8px 0; }
+
+  .auth-box{ max-width:420px; margin:0 auto; }
+  .form-error{ color:var(--red); font-size:12.5px; margin-bottom:10px; background:rgba(255,77,77,.1); border:1px solid rgba(255,77,77,.35); border-radius:8px; padding:9px 11px; }
+  .form-success{ color:var(--green); font-size:12.5px; margin-top:8px; }
+
+  /* ---------- Print (cupom) ---------- */
+  @media print{
+    body *{ visibility:hidden; }
+    #receipt, #receipt *{ visibility:visible; }
+    #receipt{ position:absolute; top:0; left:0; width:80mm; padding:6mm; color:#000; background:#fff; font-family:'JetBrains Mono', monospace; }
+  }
+  #receipt{ display:none; }
+  #receipt.show{ display:block; }
+  .r-center{ text-align:center; }
+  .r-line{ border-top:1px dashed #000; margin:6px 0; }
+  .r-row{ display:flex; justify-content:space-between; font-size:12px; }
+  .r-title{ font-weight:800; font-size:15px; }
+
+  @media (max-width:640px){
+    .brand-text .display{ font-size:13px; }
+    .tab-btn{ padding:8px 10px; font-size:12px; }
+    .tab-btn span.lbl{ display:none; }
+    .staff-link span.lbl-full{ display:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-badge">🌭</div>
+      <div class="brand-text">
+        <div class="display">D.DOG LANCHES</div>
+        <span id="brandSubtitle">Peça pelo app</span>
+      </div>
+    </div>
+    <div class="tabs" id="tabsContainer"></div>
+    <button class="staff-link" id="staffAccessBtn">🔒 <span class="lbl-full">Acesso da Equipe</span></button>
+  </div>
+</div>
+
+<div class="wrap" id="app"></div>
+
+<div id="receipt"></div>
+
+<script>
+/* ============================================================
+   D.DOG — SISTEMA DE PEDIDOS
+   - App do Cliente: cadastro/login, cardápio, pedido (pagamento
+     apenas informativo, cobrado na entrega), acompanhamento.
+   - Painel da Equipe (Anotar Pedido / Caixa / Cardápio): protegido
+     por senha, separado do app do cliente.
+   Dados compartilhados via window.storage (shared=true).
+   ============================================================ */
+
+const DEFAULT_MENU = [
+  { id:'c1', name:'Hot Dogs', items:[
+    { id:'i1', name:'Dog Tradicional', price:14.90 },
+    { id:'i2', name:'Dog Especial D.Dog', price:19.90 },
+    { id:'i3', name:'Dog Bacon Cheddar', price:21.90 },
+    { id:'i4', name:'Dog Catupiry', price:19.90 },
+  ]},
+  { id:'c2', name:'Hambúrgueres', items:[
+    { id:'i5', name:'Burger Clássico', price:22.90 },
+    { id:'i6', name:'Burger Duplo Bacon', price:28.90 },
+    { id:'i7', name:'Burger Artesanal D.Dog', price:31.90 },
+  ]},
+  { id:'c3', name:'Porções', items:[
+    { id:'i8', name:'Porção de Batata Frita', price:24.90 },
+    { id:'i9', name:'Doguitos (nachos + dog)', price:29.90 },
+    { id:'i10', name:'Batata com Cheddar e Bacon', price:32.90 },
+  ]},
+  { id:'c4', name:'Bebidas', items:[
+    { id:'i11', name:'Refrigerante Lata', price:6.00 },
+    { id:'i12', name:'Suco Natural', price:8.00 },
+    { id:'i13', name:'Água Mineral', price:4.00 },
+  ]},
+];
+
+const STATUS_FLOW = ['novo','preparo','pronto','entregue'];
+const STATUS_LABEL = { novo:'Novo', preparo:'Em preparo', pronto:'Pronto', entregue:'Entregue' };
+const PAYMENT_LABEL = { dinheiro:'Dinheiro', cartao_credito:'Cartão de Crédito', cartao_debito:'Cartão de Débito', pix:'Pix' };
+
+/* ---------------- Conexão com o Supabase ---------------- */
+const SUPABASE_URL = 'https://kvwydvmzrwedthupzpeq.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt2d3lkdm16cndlZHRodXB6cGVxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4MTIwNzgsImV4cCI6MjEwNDM4ODA3OH0.cvmu06Y0J9SdokGAhQ63RBm8KXoBcMuK0bDLWM3BDSg';
+
+let state = {
+  appMode:'cliente',            // 'cliente' | 'staff'
+  view:'garcom',                 // staff sub-view
+  customerView:'cardapio',       // 'cardapio' | 'pedidos' | 'conta'
+  authMode:'login',              // 'login' | 'cadastro'
+  currentCustomer:null,
+  menu: null,
+  orderType:'mesa',
+  selectedTable:null,
+  cart:[],
+  activeCat:0,
+  customer:{ name:'', phone:'', address:'', ref:'', wantsInvoice:false, cpf:'' },
+  paymentMethod:'dinheiro',
+  deliveryFee:5,
+  reportDate:null,
+  printerConfig:{ name:'', width:80, autoprintOnReady:false },
+  tableSearch:'',
+  orders:[],
+  newIds:new Set(),
+  modalOrder:null,
+  confirmedOrder:null,
+  staffConfirmedOrder:null,
+};
+
+const app = document.getElementById('app');
+const money = n => 'R$ ' + (n||0).toFixed(2).replace('.',',');
+function paymentLabel(p){ return PAYMENT_LABEL[p] || 'Dinheiro'; }
+function normalizePhone(p){ return (p||'').replace(/\D/g,''); }
+
+function showToast(msg){
+  const t = document.createElement('div');
+  t.className='toast';
+  t.innerHTML = `🔔 ${msg}`;
+  document.body.appendChild(t);
+  setTimeout(()=>t.remove(), 3200);
+}
+
+function beep(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.value = 880; g.gain.value = 0.08;
+    o.start();
+    setTimeout(()=>{ o.frequency.value = 1180; }, 120);
+    setTimeout(()=>{ o.stop(); ctx.close(); }, 300);
+  }catch(e){}
+}
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ---------------- Mapeamento pedido: banco <-> app ---------------- */
+function mapDbOrderToApp(row){
+  return {
+    id: row.id,
+    number: row.number,
+    type: row.type,
+    table: row.table_number,
+    customer: row.type==='delivery' ? {
+      name: row.customer_name, phone: row.customer_phone, address: row.customer_address,
+      ref: row.customer_ref || '', wantsInvoice: row.wants_invoice, cpf: row.customer_cpf || ''
+    } : null,
+    items: row.items,
+    subtotal: Number(row.subtotal),
+    deliveryFee: Number(row.delivery_fee),
+    total: Number(row.total),
+    status: row.status,
+    wantsInvoice: row.wants_invoice,
+    paymentMethod: row.payment_method,
+    placedByCustomer: row.placed_by_customer,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+function mapAppOrderToDb(o){
+  return {
+    id: o.id,
+    number: o.number,
+    type: o.type,
+    table_number: o.table,
+    customer_name: o.customer ? o.customer.name : null,
+    customer_phone: o.customer ? o.customer.phone : null,
+    customer_address: o.customer ? o.customer.address : null,
+    customer_ref: o.customer ? o.customer.ref : null,
+    customer_cpf: o.customer ? o.customer.cpf : null,
+    items: o.items,
+    subtotal: o.subtotal,
+    delivery_fee: o.deliveryFee,
+    total: o.total,
+    status: o.status,
+    wants_invoice: o.wantsInvoice,
+    payment_method: o.paymentMethod,
+    placed_by_customer: o.placedByCustomer || false,
+    created_at: o.createdAt,
+    updated_at: o.updatedAt,
+  };
+}
+
+/* ---------------- Storage: menu ---------------- */
+async function loadMenu(){
+  try{
+    const { data, error } = await sb.from('app_config').select('value').eq('key','menu-config').maybeSingle();
+    if(!error && data && data.value){ state.menu = data.value; return; }
+  }catch(e){}
+  state.menu = DEFAULT_MENU;
+  await saveMenu();
+}
+async function saveMenu(){
+  try{ await sb.from('app_config').upsert({ key:'menu-config', value: state.menu }); }catch(e){}
+}
+
+/* ---------------- Storage: taxa de entrega ---------------- */
+async function loadDeliveryFee(){
+  try{
+    const { data, error } = await sb.from('app_config').select('value').eq('key','delivery-fee').maybeSingle();
+    if(!error && data && data.value!=null){ state.deliveryFee = Number(data.value); return; }
+  }catch(e){}
+  state.deliveryFee = 5;
+  await saveDeliveryFee(5);
+}
+async function saveDeliveryFee(val){
+  state.deliveryFee = val;
+  try{ await sb.from('app_config').upsert({ key:'delivery-fee', value: val }); }catch(e){}
+}
+
+/* ---------------- Storage: configuração da impressora ---------------- */
+async function loadPrinterConfig(){
+  try{
+    const { data, error } = await sb.from('app_config').select('value').eq('key','printer-config').maybeSingle();
+    if(!error && data && data.value){ state.printerConfig = { ...state.printerConfig, ...data.value }; return; }
+  }catch(e){}
+  await savePrinterConfig(state.printerConfig);
+}
+async function savePrinterConfig(cfg){
+  state.printerConfig = cfg;
+  try{ await sb.from('app_config').upsert({ key:'printer-config', value: cfg }); }catch(e){}
+}
+
+/* ---------------- Segurança: senha da equipe ---------------- */
+async function checkStaffPassword(pwd){
+  try{
+    const { data, error } = await sb.rpc('check_staff_password', { p_password: pwd });
+    if(error) return false;
+    return data === true;
+  }catch(e){ return false; }
+}
+async function changeStaffPassword(oldPwd, newPwd){
+  const { error } = await sb.rpc('set_staff_password', { p_old_password: oldPwd, p_new_password: newPwd });
+  if(error){
+    if(String(error.message).includes('WRONG_PASSWORD')) throw new Error('Senha atual incorreta.');
+    throw new Error('Não foi possível alterar a senha agora.');
+  }
+}
+
+/* ---------------- Storage: clientes ---------------- */
+async function registerCustomer(data){
+  const phone = normalizePhone(data.phone);
+  if(!phone || phone.length<8) throw new Error('Informe um WhatsApp válido.');
+  const { data: rows, error } = await sb.rpc('register_customer', {
+    p_name:data.name, p_phone:phone, p_password:data.password, p_address:data.address, p_ref:data.ref||''
+  });
+  if(error){
+    if(String(error.message).includes('PHONE_EXISTS')) throw new Error('Já existe uma conta com esse WhatsApp. Faça login.');
+    throw new Error('Não foi possível criar sua conta agora. Tente novamente.');
+  }
+  return rows[0];
+}
+async function loginCustomer(phoneRaw, password){
+  const phone = normalizePhone(phoneRaw);
+  const { data: rows, error } = await sb.rpc('login_customer', { p_phone: phone, p_password: password });
+  if(error){
+    if(String(error.message).includes('NOT_FOUND')) throw new Error('Não encontramos uma conta com esse WhatsApp.');
+    if(String(error.message).includes('WRONG_PASSWORD')) throw new Error('Senha incorreta.');
+    throw new Error('Não foi possível entrar agora. Tente novamente.');
+  }
+  return rows[0];
+}
+
+/* ---------------- Storage: pedidos ---------------- */
+async function nextOrderNumber(){
+  const { data, error } = await sb.rpc('next_order_number');
+  if(error) throw error;
+  return data;
+}
+async function loadOrders(){
+  try{
+    const { data, error } = await sb.from('orders').select('*').order('created_at', { ascending:false });
+    if(error){ state.orders = state.orders || []; return; }
+    state.orders = (data||[]).map(mapDbOrderToApp);
+  }catch(e){ state.orders = state.orders || []; }
+}
+async function saveOrder(order){
+  const { error } = await sb.from('orders').upsert(mapAppOrderToDb(order));
+  if(error) throw error;
+}
+
+/* ---------------- Polling ---------------- */
+let firstLoad = true;
+async function pollOrders(){
+  const before = new Set(state.orders.map(o=>o.id));
+  await loadOrders();
+  if(!firstLoad){
+    const newOnes = state.orders.filter(o=> !before.has(o.id));
+    if(newOnes.length){
+      newOnes.forEach(o=> state.newIds.add(o.id));
+      if(state.appMode==='staff' && state.view==='caixa'){
+        beep();
+        showToast(newOnes.length===1 ? `Novo pedido recebido — ${orderLabel(newOnes[0])}` : `${newOnes.length} novos pedidos recebidos`);
+      }
+    }
+  }
+  firstLoad = false;
+  if(state.appMode==='staff'){
+    updateBadge();
+    if(state.view==='caixa') renderCaixa();
+  } else if(state.customerView==='pedidos'){
+    renderClientePedidos();
+  }
+}
+function orderLabel(o){ return o.type==='mesa' ? `Mesa ${o.table}` : 'Delivery'; }
+function updateBadge(){
+  const badge = document.getElementById('badgeCount');
+  if(!badge) return;
+  const pending = state.orders.filter(o=>o.status==='novo').length;
+  if(pending>0){ badge.style.display='flex'; badge.textContent = pending; } else { badge.style.display='none'; }
+}
+
+/* ---------------- Topbar ---------------- */
+function renderTopbar(){
+  const tabsContainer = document.getElementById('tabsContainer');
+  const subtitle = document.getElementById('brandSubtitle');
+  if(state.appMode==='cliente'){
+    subtitle.textContent = 'Peça pelo app';
+    tabsContainer.innerHTML = `
+      <button class="tab-btn ${state.customerView==='cardapio'?'active':''}" data-cview="cardapio">🍔 <span class="lbl">Cardápio</span></button>
+      <button class="tab-btn ${state.customerView==='pedidos'?'active':''}" data-cview="pedidos">📦 <span class="lbl">Meus Pedidos</span></button>
+      <button class="tab-btn ${state.customerView==='conta'?'active':''}" data-cview="conta">👤 <span class="lbl">${state.currentCustomer ? state.currentCustomer.name.split(' ')[0] : 'Minha Conta'}</span></button>
+    `;
+    tabsContainer.querySelectorAll('[data-cview]').forEach(b=> b.onclick = ()=>{ state.customerView = b.dataset.cview; renderTopbar(); render(); });
+  } else {
+    subtitle.textContent = 'Painel da Equipe';
+    tabsContainer.innerHTML = `
+      <button class="tab-btn ${state.view==='garcom'?'active':''}" data-view="garcom">📝 <span class="lbl">Anotar Pedido</span></button>
+      <button class="tab-btn ${state.view==='caixa'?'active':''}" data-view="caixa">💳 <span class="lbl">Caixa</span> <span class="badge-dot" id="badgeCount" style="display:none;">0</span></button>
+      <button class="tab-btn ${state.view==='relatorios'?'active':''}" data-view="relatorios">📊 <span class="lbl">Relatórios</span></button>
+      <button class="tab-btn ${state.view==='impressora'?'active':''}" data-view="impressora">🖨️ <span class="lbl">Impressora</span></button>
+      <button class="tab-btn ${state.view==='cardapio'?'active':''}" data-view="cardapio">🍔 <span class="lbl">Cardápio</span></button>
+    `;
+    tabsContainer.querySelectorAll('[data-view]').forEach(b=> b.onclick = ()=>{ state.view = b.dataset.view; renderTopbar(); render(); });
+    updateBadge();
+  }
+  const staffBtn = document.getElementById('staffAccessBtn');
+  staffBtn.innerHTML = state.appMode==='staff' ? '🚪 <span class="lbl-full">Sair para o App do Cliente</span>' : '🔒 <span class="lbl-full">Acesso da Equipe</span>';
+  staffBtn.onclick = ()=>{
+    if(state.appMode==='staff'){
+      state.appMode='cliente';
+      renderTopbar(); render();
+    } else {
+      openStaffLoginModal();
+    }
+  };
+}
+
+function openStaffLoginModal(){
+  const bg = document.createElement('div');
+  bg.className='modal-bg';
+  bg.innerHTML = `
+    <div class="modal" style="max-width:340px;">
+      <div class="modal-head">
+        <h3 class="display" style="font-size:15px; margin:0;">Acesso da Equipe</h3>
+        <button class="modal-close" id="closeStaffModal">✕</button>
+      </div>
+      <div class="field">
+        <label>Senha</label>
+        <input type="password" id="staffPasswordInput" placeholder="Digite a senha da equipe">
+      </div>
+      <div id="staffLoginError" class="form-error" style="display:none; margin-top:10px;"></div>
+      <button class="btn-primary" id="staffLoginSubmit">Entrar</button>
+    </div>
+  `;
+  document.body.appendChild(bg);
+  document.getElementById('closeStaffModal').onclick = ()=> bg.remove();
+  bg.onclick = (e)=>{ if(e.target===bg) bg.remove(); };
+  const input = document.getElementById('staffPasswordInput');
+  input.focus();
+  const submit = async ()=>{
+    const ok = await checkStaffPassword(input.value);
+    if(ok){
+      state.appMode='staff'; state.view='garcom';
+      bg.remove();
+      renderTopbar(); render();
+    } else {
+      const err = document.getElementById('staffLoginError');
+      err.textContent = 'Senha incorreta. Tente novamente.';
+      err.style.display = 'block';
+    }
+  };
+  document.getElementById('staffLoginSubmit').onclick = submit;
+  input.onkeydown = (e)=>{ if(e.key==='Enter') submit(); };
+}
+
+/* ---------------- Render dispatcher ---------------- */
+function render(){
+  if(state.appMode==='cliente'){
+    if(state.customerView==='cardapio') renderClienteCardapio();
+    else if(state.customerView==='pedidos') renderClientePedidos();
+    else renderClienteConta();
+    return;
+  }
+  if(state.view==='garcom') renderGarcom();
+  else if(state.view==='caixa') renderCaixa();
+  else if(state.view==='relatorios') renderRelatorios();
+  else if(state.view==='impressora') renderImpressora();
+  else if(state.view==='cardapio') renderCardapio();
+}
+
+function dateKey(iso){
+  const d = new Date(iso);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function todayStr(){ return dateKey(new Date().toISOString()); }
+
+/* ================= STAFF — RELATÓRIOS ================= */
+function renderRelatorios(){
+  const delivered = state.orders.filter(o=>o.status==='entregue');
+  const totalFaturado = delivered.reduce((s,o)=>s+o.total,0);
+  const todayKey = todayStr();
+  const ordersToday = delivered.filter(o=> dateKey(o.createdAt)===todayKey);
+  const faturadoHoje = ordersToday.reduce((s,o)=>s+o.total,0);
+  const pendentes = state.orders.filter(o=>o.status!=='entregue');
+  const valorPendente = pendentes.reduce((s,o)=>s+o.total,0);
+  const ticketMedio = delivered.length ? totalFaturado/delivered.length : 0;
+
+  const selDate = state.reportDate || todayKey;
+  const dayDelivered = state.orders.filter(o=> o.status==='entregue' && dateKey(o.createdAt)===selDate);
+  const dayTotal = dayDelivered.reduce((s,o)=>s+o.total,0);
+  const dayFees = dayDelivered.reduce((s,o)=>s+(o.deliveryFee||0),0);
+
+  const itemMap = {};
+  dayDelivered.forEach(o=>{
+    o.items.forEach(i=>{
+      if(!itemMap[i.name]) itemMap[i.name] = { qty:0, total:0 };
+      itemMap[i.name].qty += i.qty;
+      itemMap[i.name].total += i.price*i.qty;
+    });
+  });
+  const itemRows = Object.entries(itemMap).sort((a,b)=> b[1].qty-a[1].qty);
+  const mesaCount = dayDelivered.filter(o=>o.type==='mesa').length;
+  const deliveryCount = dayDelivered.filter(o=>o.type==='delivery').length;
+
+  app.innerHTML = `
+    <div class="grid" style="gap:14px;">
+      <div class="grid" style="grid-template-columns:repeat(4,1fr); gap:12px;">
+        <div class="panel">
+          <div class="section-title">Faturamento total</div>
+          <div class="display" style="font-size:21px; color:var(--mustard);">${money(totalFaturado)}</div>
+          <div style="font-size:11.5px; color:var(--cream-dim); margin-top:4px;">${delivered.length} pedidos entregues</div>
+        </div>
+        <div class="panel">
+          <div class="section-title">Faturado hoje</div>
+          <div class="display" style="font-size:21px; color:var(--green);">${money(faturadoHoje)}</div>
+          <div style="font-size:11.5px; color:var(--cream-dim); margin-top:4px;">${ordersToday.length} pedidos hoje</div>
+        </div>
+        <div class="panel">
+          <div class="section-title">Em andamento</div>
+          <div class="display" style="font-size:21px;">${money(valorPendente)}</div>
+          <div style="font-size:11.5px; color:var(--cream-dim); margin-top:4px;">${pendentes.length} pedidos ainda não entregues</div>
+        </div>
+        <div class="panel">
+          <div class="section-title">Ticket médio</div>
+          <div class="display" style="font-size:21px;">${money(ticketMedio)}</div>
+          <div style="font-size:11.5px; color:var(--cream-dim); margin-top:4px;">por pedido entregue</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="section-title">Consumo do dia</div>
+        <div class="field" style="max-width:200px; margin-bottom:14px;">
+          <label>Escolha a data</label>
+          <input type="date" id="reportDateInput" value="${selDate}">
+        </div>
+        <div class="row" style="margin-bottom:16px; gap:22px; flex-wrap:wrap;">
+          <div style="font-size:13.5px;"><b style="color:var(--mustard);">${money(dayTotal)}</b> faturado no dia</div>
+          <div style="font-size:13.5px;"><b>${dayDelivered.length}</b> pedidos entregues</div>
+          <div style="font-size:13.5px;"><b>${mesaCount}</b> mesa · <b>${deliveryCount}</b> delivery</div>
+          <div style="font-size:13.5px;"><b>${money(dayFees)}</b> em taxas de entrega</div>
+        </div>
+        ${itemRows.length===0 ? `<div class="empty-col">Nenhuma venda concluída nessa data.</div>` : `
+          <div style="max-height:360px; overflow-y:auto;">
+            ${itemRows.map(([name,d])=>`
+              <div class="detail-line"><span>${d.qty}× ${name}</span><span>${money(d.total)}</span></div>
+            `).join('')}
+          </div>
+        `}
+        <div style="font-size:11px; color:var(--cream-dim); margin-top:12px;">Os valores consideram apenas pedidos já marcados como "Entregue" no Caixa.</div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('reportDateInput').onchange = (e)=>{ state.reportDate = e.target.value; renderRelatorios(); };
+}
+
+/* ================= APP DO CLIENTE — CONTA ================= */
+function renderClienteConta(){
+  if(state.currentCustomer){
+    const c = state.currentCustomer;
+    app.innerHTML = `
+      <div class="panel auth-box">
+        <div class="section-title">Minha Conta</div>
+        <div class="detail-line"><span>Nome</span><span>${c.name}</span></div>
+        <div class="detail-line"><span>WhatsApp</span><span>${c.phone}</span></div>
+        <div class="detail-line"><span>Endereço</span><span style="text-align:right; max-width:60%;">${c.address}</span></div>
+        <button class="btn-ghost" id="btnLogout" style="width:100%; margin-top:16px;">Sair da conta</button>
+      </div>
+    `;
+    document.getElementById('btnLogout').onclick = ()=>{
+      state.currentCustomer = null;
+      state.customerView = 'cardapio';
+      renderTopbar(); render();
+    };
+    return;
+  }
+
+  const mode = state.authMode;
+  app.innerHTML = `
+    <div class="panel auth-box">
+      <div class="type-toggle">
+        <button class="type-btn ${mode==='login'?'active':''}" id="authLoginTab">Entrar</button>
+        <button class="type-btn ${mode==='cadastro'?'active':''}" id="authCadastroTab">Cadastrar</button>
+      </div>
+      <div id="authError" class="form-error" style="display:none;"></div>
+      ${mode==='login' ? `
+        <div class="grid" style="gap:10px;">
+          <div class="field"><label>WhatsApp</label><input id="loginPhone" placeholder="(00) 00000-0000"></div>
+          <div class="field"><label>Senha</label><input type="password" id="loginPassword" placeholder="Sua senha"></div>
+          <button class="btn-primary" id="btnLoginSubmit">Entrar</button>
+        </div>
+      ` : `
+        <div class="grid" style="gap:10px;">
+          <div class="field"><label>Nome completo</label><input id="regName" placeholder="Seu nome"></div>
+          <div class="field"><label>WhatsApp</label><input id="regPhone" placeholder="(00) 00000-0000"></div>
+          <div class="field"><label>Senha</label><input type="password" id="regPassword" placeholder="Crie uma senha"></div>
+          <div class="field"><label>Endereço completo</label><textarea id="regAddress" placeholder="Rua, número, bairro, cidade"></textarea></div>
+          <div class="field"><label>Ponto de referência</label><input id="regRef" placeholder="Opcional"></div>
+          <button class="btn-primary" id="btnRegisterSubmit">Criar minha conta</button>
+        </div>
+      `}
+    </div>
+  `;
+  document.getElementById('authLoginTab').onclick = ()=>{ state.authMode='login'; renderClienteConta(); };
+  document.getElementById('authCadastroTab').onclick = ()=>{ state.authMode='cadastro'; renderClienteConta(); };
+
+  const showErr = (msg)=>{ const e = document.getElementById('authError'); e.textContent = msg; e.style.display = 'block'; };
+
+  if(mode==='login'){
+    document.getElementById('btnLoginSubmit').onclick = async ()=>{
+      const btn = document.getElementById('btnLoginSubmit');
+      const phone = document.getElementById('loginPhone').value;
+      const pass = document.getElementById('loginPassword').value;
+      if(!phone || !pass){ showErr('Preencha telefone e senha.'); return; }
+      btn.disabled = true; btn.textContent = 'Entrando...';
+      try{
+        const record = await loginCustomer(phone, pass);
+        state.currentCustomer = record;
+        state.customer = { name:record.name, phone:record.phone, address:record.address, ref:record.ref||'', wantsInvoice:false, cpf:'' };
+        state.customerView = 'cardapio';
+        renderTopbar(); render();
+      }catch(err){ showErr(err.message); btn.disabled=false; btn.textContent='Entrar'; }
+    };
+  } else {
+    document.getElementById('btnRegisterSubmit').onclick = async ()=>{
+      const btn = document.getElementById('btnRegisterSubmit');
+      const data = {
+        name: document.getElementById('regName').value.trim(),
+        phone: document.getElementById('regPhone').value.trim(),
+        password: document.getElementById('regPassword').value,
+        address: document.getElementById('regAddress').value.trim(),
+        ref: document.getElementById('regRef').value.trim(),
+      };
+      if(!data.name || !data.phone || !data.password || !data.address){
+        showErr('Preencha nome, telefone, senha e endereço.'); return;
+      }
+      btn.disabled = true; btn.textContent = 'Criando conta...';
+      try{
+        const record = await registerCustomer(data);
+        state.currentCustomer = record;
+        state.customer = { name:record.name, phone:record.phone, address:record.address, ref:record.ref||'', wantsInvoice:false, cpf:'' };
+        state.customerView = 'cardapio';
+        renderTopbar(); render();
+      }catch(err){ showErr(err.message); btn.disabled=false; btn.textContent='Criar minha conta'; }
+    };
+  }
+}
+
+/* ================= APP DO CLIENTE — CARDÁPIO / PEDIDO ================= */
+function renderClienteCardapio(){
+  if(!state.currentCustomer){
+    app.innerHTML = `
+      <div class="empty-state">
+        <div class="ic">🔐</div>
+        Faça login ou cadastre-se para fazer seu pedido.
+        <div style="margin-top:16px;"><button class="btn-primary" id="goToConta" style="width:auto; padding:12px 26px;">Entrar / Cadastrar</button></div>
+      </div>
+    `;
+    document.getElementById('goToConta').onclick = ()=>{ state.customerView='conta'; renderTopbar(); render(); };
+    return;
+  }
+  if(state.confirmedOrder){ renderClienteConfirm(); return; }
+
+  const cat = getActiveCategory();
+  if(!cat){ app.innerHTML = `<div class="empty-state"><div class="ic">🍽️</div>O cardápio ainda não tem itens cadastrados.</div>`; return; }
+  const itemsSubtotal = state.cart.reduce((s,i)=> s + i.price*i.qty, 0);
+  const cartTotal = itemsSubtotal + state.deliveryFee;
+
+  app.innerHTML = `
+    <div class="grid" style="grid-template-columns:1.15fr .85fr; align-items:start; gap:16px;">
+      <div class="panel">
+        <div class="section-title">Cardápio</div>
+        <div class="cat-tabs">
+          ${state.menu.map((c,i)=>`<button class="cat-tab ${i===state.activeCat?'active':''}" data-cat="${i}">${c.name}</button>`).join('')}
+        </div>
+        <div>
+          ${cat.items.map(it=>`
+            <div class="menu-item">
+              <div>
+                <div class="menu-item-name">${it.name}</div>
+                <div class="menu-item-price">${money(it.price)}</div>
+              </div>
+              <button class="add-btn" data-add="${it.id}" data-cat="${cat.name}">+</button>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div class="cart">
+        <div class="cart-panel">
+          <div class="section-title" style="margin-bottom:10px;">Seu pedido</div>
+          ${state.cart.length===0 ? `<div class="empty-state" style="padding:24px 10px;"><div class="ic">🛒</div>Nenhum item adicionado ainda</div>` : `
+            ${state.cart.map((it,idx)=>`
+              <div class="cart-line">
+                <div style="flex:1;">
+                  <div style="font-weight:700; font-size:13.5px;">${it.name}</div>
+                  <input class="obs-input" placeholder="Observação (ex: sem cebola)" value="${it.obs||''}" data-obsidx="${idx}">
+                </div>
+                <div class="qty-ctrl">
+                  <button data-dec="${idx}">−</button>
+                  <span style="min-width:16px; text-align:center; font-weight:700;">${it.qty}</span>
+                  <button data-inc="${idx}">+</button>
+                </div>
+                <div style="min-width:64px; text-align:right; font-family:'JetBrains Mono',monospace; font-size:13px;">${money(it.price*it.qty)}</div>
+              </div>
+            `).join('')}
+          `}
+          <div class="field" style="margin-top:12px;">
+            <label>Endereço de entrega</label>
+            <textarea id="checkoutAddress">${state.customer.address}</textarea>
+          </div>
+          <div class="field" style="margin-top:10px;">
+            <label>Forma de pagamento</label>
+            <select id="paymentMethod">
+              <option value="dinheiro" ${state.paymentMethod==='dinheiro'?'selected':''}>Dinheiro</option>
+              <option value="cartao_credito" ${state.paymentMethod==='cartao_credito'?'selected':''}>Cartão de Crédito</option>
+              <option value="cartao_debito" ${state.paymentMethod==='cartao_debito'?'selected':''}>Cartão de Débito</option>
+              <option value="pix" ${state.paymentMethod==='pix'?'selected':''}>Pix</option>
+            </select>
+          </div>
+          <div class="payment-note">💵 O pagamento é feito direto ao entregador na entrega — não processamos pagamentos pelo app.</div>
+          <div class="detail-line" style="border-bottom:none; padding-top:10px;"><span>Subtotal</span><span>${money(itemsSubtotal)}</span></div>
+          <div class="detail-line" style="border-bottom:none;"><span>Taxa de entrega</span><span>${money(state.deliveryFee)}</span></div>
+          <div class="cart-total">
+            <span>Total</span>
+            <span class="display">${money(cartTotal)}</span>
+          </div>
+          <button class="btn-primary" id="btnFinalizarCliente" ${state.cart.length===0?'disabled':''}>Fazer pedido</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.querySelectorAll('.cat-tab').forEach(b=> b.onclick = ()=>{ state.activeCat = parseInt(b.dataset.cat,10); renderClienteCardapio(); });
+  document.querySelectorAll('[data-add]').forEach(b=> b.onclick = ()=>{ addToCart(b.dataset.add, b.dataset.cat); renderClienteCardapio(); });
+  document.querySelectorAll('[data-inc]').forEach(b=> b.onclick = ()=>{ state.cart[b.dataset.inc].qty++; renderClienteCardapio(); });
+  document.querySelectorAll('[data-dec]').forEach(b=> b.onclick = ()=>{
+    const i = b.dataset.dec; state.cart[i].qty--; if(state.cart[i].qty<=0) state.cart.splice(i,1); renderClienteCardapio();
+  });
+  document.querySelectorAll('[data-obsidx]').forEach(inp=> inp.onchange = ()=>{ state.cart[inp.dataset.obsidx].obs = inp.value; });
+  const addrEl = document.getElementById('checkoutAddress');
+  if(addrEl) addrEl.oninput = (e)=>{ state.customer.address = e.target.value; };
+  const payEl = document.getElementById('paymentMethod');
+  if(payEl) payEl.onchange = (e)=>{ state.paymentMethod = e.target.value; };
+  const finalBtn = document.getElementById('btnFinalizarCliente');
+  if(finalBtn) finalBtn.onclick = submitClienteOrder;
+}
+
+function addToCart(itemId, catName){
+  const cat = state.menu.find(c=>c.name===catName) || state.menu.find(c=>c.items.some(i=>i.id===itemId));
+  const item = cat.items.find(i=>i.id===itemId);
+  const existing = state.cart.find(c=>c.itemId===itemId && !c.obs);
+  if(existing){ existing.qty++; } else { state.cart.push({ itemId, name:item.name, price:item.price, qty:1, obs:'' }); }
+}
+
+async function submitClienteOrder(){
+  if(state.cart.length===0) return;
+  if(!state.customer.address.trim()){ showToast('Informe o endereço de entrega.'); return; }
+  const btn = document.getElementById('btnFinalizarCliente');
+  if(btn){ btn.disabled = true; btn.textContent = 'Enviando pedido...'; }
+  try{
+    const number = await nextOrderNumber();
+    const itemsSubtotal = state.cart.reduce((s,i)=>s+i.price*i.qty,0);
+    const order = {
+      id: 'o'+Date.now()+Math.random().toString(36).slice(2,7),
+      number,
+      type:'delivery',
+      table:null,
+      customer: {
+        name: state.currentCustomer.name,
+        phone: state.currentCustomer.phone,
+        address: state.customer.address,
+        ref: state.currentCustomer.ref || '',
+        wantsInvoice:false,
+        cpf:''
+      },
+      items: state.cart.map(i=>({ name:i.name, price:i.price, qty:i.qty, obs:i.obs })),
+      subtotal: itemsSubtotal,
+      deliveryFee: state.deliveryFee,
+      total: itemsSubtotal + state.deliveryFee,
+      status:'novo',
+      wantsInvoice:false,
+      paymentMethod: state.paymentMethod || 'dinheiro',
+      placedByCustomer:true,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await saveOrder(order);
+    state.confirmedOrder = order;
+    state.cart = [];
+    await loadOrders();
+    renderClienteCardapio();
+  }catch(err){
+    console.error('Erro ao enviar pedido:', err);
+    showToast('Não foi possível enviar seu pedido. Tente novamente.');
+    if(btn){ btn.disabled=false; btn.textContent='Fazer pedido'; }
+  }
+}
+
+function renderClienteConfirm(){
+  const o = state.confirmedOrder;
+  app.innerHTML = `
+    <div class="panel confirm-screen">
+      <div style="font-size:40px;">✅</div>
+      <h2 class="display" style="font-size:18px; margin:14px 0 4px;">Pedido enviado!</h2>
+      <div class="confirm-num">#${String(o.number).padStart(4,'0')}</div>
+      <div style="color:var(--cream-dim); margin-bottom:20px;">Pagamento na entrega: ${paymentLabel(o.paymentMethod)}</div>
+      <button class="btn-primary" id="btnVerPedidos" style="max-width:260px; margin:0 auto;">Acompanhar meu pedido</button>
+    </div>
+  `;
+  document.getElementById('btnVerPedidos').onclick = ()=>{
+    state.confirmedOrder = null;
+    state.customerView = 'pedidos';
+    renderTopbar(); render();
+  };
+}
+
+/* ================= APP DO CLIENTE — MEUS PEDIDOS ================= */
+function renderClientePedidos(){
+  if(!state.currentCustomer){
+    app.innerHTML = `<div class="empty-state"><div class="ic">🔐</div>Faça login para ver seus pedidos.</div>`;
+    return;
+  }
+  const myOrders = state.orders.filter(o=> o.customer && o.customer.phone === state.currentCustomer.phone);
+  if(myOrders.length===0){
+    app.innerHTML = `<div class="empty-state"><div class="ic">📦</div>Você ainda não fez nenhum pedido.</div>`;
+    return;
+  }
+  app.innerHTML = `
+    <div class="grid" style="gap:12px; max-width:540px; margin:0 auto;">
+      ${myOrders.map(o=>`
+        <div class="panel">
+          <div class="oc-top">
+            <span class="oc-num">#${String(o.number).padStart(4,'0')}</span>
+            <span class="oc-tag ${o.status}">${STATUS_LABEL[o.status]}</span>
+          </div>
+          <div class="oc-items" style="margin:8px 0;">${o.items.map(i=>`${i.qty}× ${i.name}`).join('<br>')}</div>
+          <div class="oc-foot">
+            <span class="oc-total">${money(o.total)}</span>
+            <span class="oc-time">${timeAgo(o.createdAt)}</span>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+  `;
+}
+
+/* ================= STAFF — ANOTAR PEDIDO (GARÇOM) ================= */
+function getActiveCategory(){
+  if(!state.menu || state.menu.length===0) return null;
+  if(state.activeCat >= state.menu.length || state.activeCat < 0) state.activeCat = 0;
+  return state.menu[state.activeCat];
+}
+
+function renderGarcom(){
+  if(state.staffConfirmedOrder){ renderConfirm(); return; }
+
+  const cat = getActiveCategory();
+  if(!cat){ app.innerHTML = `<div class="empty-state"><div class="ic">🍽️</div>Cadastre pelo menos um item no cardápio para anotar pedidos.</div>`; return; }
+  const itemsSubtotal = state.cart.reduce((s,i)=> s + i.price*i.qty, 0);
+  const deliveryFeeApplied = state.orderType==='delivery' ? state.deliveryFee : 0;
+  const cartTotal = itemsSubtotal + deliveryFeeApplied;
+
+  app.innerHTML = `
+    <div class="grid" style="grid-template-columns:1.15fr .85fr; align-items:start; gap:16px;">
+      <div>
+        <div class="panel" style="margin-bottom:14px;">
+          <div class="section-title">Tipo de pedido</div>
+          <div class="type-toggle">
+            <button class="type-btn ${state.orderType==='mesa'?'active':''}" id="btnMesa"><span class="ic">🪑</span>Mesa</button>
+            <button class="type-btn ${state.orderType==='delivery'?'active':''}" id="btnDelivery"><span class="ic">🛵</span>Delivery</button>
+          </div>
+          ${state.orderType==='mesa' ? renderTableSection() : renderDeliveryForm()}
+        </div>
+
+        <div class="panel">
+          <div class="section-title">Cardápio</div>
+          <div class="cat-tabs">
+            ${state.menu.map((c,i)=>`<button class="cat-tab ${i===state.activeCat?'active':''}" data-cat="${i}">${c.name}</button>`).join('')}
+          </div>
+          <div>
+            ${cat.items.map(it=>`
+              <div class="menu-item">
+                <div>
+                  <div class="menu-item-name">${it.name}</div>
+                  <div class="menu-item-price">${money(it.price)}</div>
+                </div>
+                <button class="add-btn" data-add="${it.id}" data-cat="${cat.name}">+</button>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+
+      <div class="cart">
+        <div class="cart-panel">
+          <div class="section-title" style="margin-bottom:10px;">Pedido atual</div>
+          ${state.cart.length===0 ? `<div class="empty-state" style="padding:24px 10px;"><div class="ic">🛒</div>Nenhum item adicionado ainda</div>` : `
+            ${state.cart.map((it,idx)=>`
+              <div class="cart-line">
+                <div style="flex:1;">
+                  <div style="font-weight:700; font-size:13.5px;">${it.name}</div>
+                  <input class="obs-input" placeholder="Observação (ex: sem cebola)" value="${it.obs||''}" data-obsidx="${idx}">
+                </div>
+                <div class="qty-ctrl">
+                  <button data-dec="${idx}">−</button>
+                  <span style="min-width:16px; text-align:center; font-weight:700;">${it.qty}</span>
+                  <button data-inc="${idx}">+</button>
+                </div>
+                <div style="min-width:64px; text-align:right; font-family:'JetBrains Mono',monospace; font-size:13px;">${money(it.price*it.qty)}</div>
+              </div>
+            `).join('')}
+          `}
+          ${state.orderType==='delivery' ? `
+            <div class="detail-line" style="border-bottom:none; padding-top:10px;"><span>Subtotal</span><span>${money(itemsSubtotal)}</span></div>
+            <div class="detail-line" style="border-bottom:none;"><span>Taxa de entrega</span><span>${money(deliveryFeeApplied)}</span></div>
+          ` : ''}
+          <div class="cart-total">
+            <span>Total</span>
+            <span class="display">${money(cartTotal)}</span>
+          </div>
+          <button class="btn-primary" id="btnFinalizar" ${!canSubmit()?'disabled':''}>Enviar pedido para o caixa</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.getElementById('btnMesa').onclick = ()=>{ state.orderType='mesa'; renderGarcom(); };
+  document.getElementById('btnDelivery').onclick = ()=>{ state.orderType='delivery'; renderGarcom(); };
+  document.querySelectorAll('.cat-tab').forEach(b=> b.onclick = ()=>{ state.activeCat = parseInt(b.dataset.cat,10); renderGarcom(); });
+  document.querySelectorAll('[data-add]').forEach(b=> b.onclick = ()=>{ addToCart(b.dataset.add, b.dataset.cat); renderGarcom(); });
+  document.querySelectorAll('[data-inc]').forEach(b=> b.onclick = ()=>{ state.cart[b.dataset.inc].qty++; renderGarcom(); });
+  document.querySelectorAll('[data-dec]').forEach(b=> b.onclick = ()=>{
+    const i = b.dataset.dec; state.cart[i].qty--; if(state.cart[i].qty<=0) state.cart.splice(i,1); renderGarcom();
+  });
+  document.querySelectorAll('[data-obsidx]').forEach(inp=> inp.onchange = ()=>{ state.cart[inp.dataset.obsidx].obs = inp.value; });
+
+  if(state.orderType==='mesa'){
+    document.getElementById('tableSearchInput').oninput = (e)=>{ state.tableSearch = e.target.value; renderGarcom(); document.getElementById('tableSearchInput').focus(); };
+    document.querySelectorAll('.table-cell').forEach(c=> c.onclick = ()=>{ state.selectedTable = parseInt(c.dataset.table,10); renderGarcom(); });
+  } else {
+    ['custName','custPhone','custAddress','custRef','custCpf'].forEach(id=>{
+      const el = document.getElementById(id);
+      if(el) el.oninput = (e)=>{
+        const map = { custName:'name', custPhone:'phone', custAddress:'address', custRef:'ref', custCpf:'cpf' };
+        state.customer[map[id]] = e.target.value;
+        updateSubmitButton();
+      };
+    });
+    const payEl = document.getElementById('custPayment');
+    if(payEl) payEl.onchange = (e)=>{ state.paymentMethod = e.target.value; };
+    const inv = document.getElementById('custInvoice');
+    if(inv) inv.onchange = (e)=>{ state.customer.wantsInvoice = e.target.checked; renderGarcom(); };
+    const phoneEl = document.getElementById('custPhone');
+    if(phoneEl) phoneEl.onblur = ()=> lookupCustomerByPhone();
+  }
+
+  const finalBtn = document.getElementById('btnFinalizar');
+  if(finalBtn) finalBtn.onclick = submitOrder;
+}
+
+async function lookupCustomerByPhone(){
+  const phone = normalizePhone(state.customer.phone);
+  if(phone.length<8) return;
+  try{
+    const { data, error } = await sb.rpc('lookup_customer_by_phone', { p_phone: phone });
+    if(!error && data && data.length){
+      const c = data[0];
+      state.customer.name = c.name;
+      state.customer.address = c.address;
+      state.customer.ref = c.ref || '';
+      showToast(`Cliente encontrado: ${c.name}`);
+      renderGarcom();
+    }
+  }catch(e){}
+}
+
+function updateSubmitButton(){
+  const btn = document.getElementById('btnFinalizar');
+  if(btn) btn.disabled = !canSubmit();
+}
+
+function renderTableSection(){
+  const occupied = new Set(state.orders.filter(o=>o.type==='mesa' && o.status!=='entregue').map(o=>o.table));
+  let tables = Array.from({length:100}, (_,i)=>i+1);
+  if(state.tableSearch) tables = tables.filter(t=> String(t).includes(state.tableSearch));
+  return `
+    <input class="table-search" id="tableSearchInput" placeholder="Buscar mesa (1–100)..." value="${state.tableSearch}">
+    <div class="tables-grid">
+      ${tables.map(t=>`<div class="table-cell ${state.selectedTable===t?'selected':''} ${occupied.has(t)?'occupied':''}" data-table="${t}">${t}</div>`).join('')}
+    </div>
+    ${state.selectedTable ? `<div style="margin-top:10px; font-size:13px; color:var(--cream-dim);">Mesa selecionada: <b style="color:var(--cream);">${state.selectedTable}</b></div>` : ''}
+  `;
+}
+
+function renderDeliveryForm(){
+  const c = state.customer;
+  return `
+    <div class="grid" style="gap:10px; margin-top:4px;">
+      <div class="field"><label>Nome do cliente</label><input id="custName" value="${c.name}" placeholder="Nome completo"></div>
+      <div class="field"><label>WhatsApp do cliente</label><input id="custPhone" value="${c.phone}" placeholder="(00) 00000-0000"><div style="font-size:11px; color:var(--cream-dim); margin-top:2px;">Digite o WhatsApp e saia do campo — se o cliente já tiver cadastro no app, os dados dele preenchem sozinhos.</div></div>
+      <div class="field"><label>Endereço completo</label><textarea id="custAddress" placeholder="Rua, número, bairro, cidade">${c.address}</textarea></div>
+      <div class="field"><label>Ponto de referência</label><input id="custRef" value="${c.ref}" placeholder="Opcional"></div>
+      <div class="field">
+        <label>Forma de pagamento (na entrega)</label>
+        <select id="custPayment">
+          <option value="dinheiro" ${state.paymentMethod==='dinheiro'?'selected':''}>Dinheiro</option>
+          <option value="cartao_credito" ${state.paymentMethod==='cartao_credito'?'selected':''}>Cartão de Crédito</option>
+          <option value="cartao_debito" ${state.paymentMethod==='cartao_debito'?'selected':''}>Cartão de Débito</option>
+          <option value="pix" ${state.paymentMethod==='pix'?'selected':''}>Pix</option>
+        </select>
+      </div>
+      <label class="checkline"><input type="checkbox" id="custInvoice" ${c.wantsInvoice?'checked':''}> Cliente quer nota fiscal</label>
+      ${c.wantsInvoice ? `<div class="field"><label>CPF/CNPJ (opcional)</label><input id="custCpf" value="${c.cpf}" placeholder="000.000.000-00"></div>` : ''}
+    </div>
+  `;
+}
+
+function canSubmit(){
+  if(state.cart.length===0) return false;
+  if(state.orderType==='mesa') return !!state.selectedTable;
+  return state.customer.name.trim() && state.customer.address.trim();
+}
+
+async function submitOrder(){
+  const btn = document.getElementById('btnFinalizar');
+  if(!canSubmit()) return;
+  if(btn){ btn.disabled = true; btn.textContent = 'Enviando pedido...'; }
+  try{
+    const number = await nextOrderNumber();
+    const itemsSubtotal = state.cart.reduce((s,i)=>s+i.price*i.qty,0);
+    const deliveryFeeApplied = state.orderType==='delivery' ? state.deliveryFee : 0;
+    const order = {
+      id: 'o'+Date.now()+Math.random().toString(36).slice(2,7),
+      number,
+      type: state.orderType,
+      table: state.orderType==='mesa' ? state.selectedTable : null,
+      customer: state.orderType==='delivery' ? { ...state.customer } : null,
+      items: state.cart.map(i=>({ name:i.name, price:i.price, qty:i.qty, obs:i.obs })),
+      subtotal: itemsSubtotal,
+      deliveryFee: deliveryFeeApplied,
+      total: itemsSubtotal + deliveryFeeApplied,
+      status:'novo',
+      wantsInvoice: state.orderType==='delivery' ? state.customer.wantsInvoice : false,
+      paymentMethod: state.orderType==='delivery' ? (state.paymentMethod||'dinheiro') : null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    await saveOrder(order);
+    state.staffConfirmedOrder = order;
+    state.cart = [];
+    state.selectedTable = null;
+    state.customer = { name:'', phone:'', address:'', ref:'', wantsInvoice:false, cpf:'' };
+    state.paymentMethod = 'dinheiro';
+    await loadOrders();
+    updateBadge();
+    renderGarcom();
+  }catch(err){
+    console.error('Erro ao enviar pedido:', err);
+    showToast('Não foi possível enviar o pedido. Verifique a conexão e tente novamente.');
+    if(btn){ btn.disabled = !canSubmit(); btn.textContent = 'Enviar pedido para o caixa'; }
+  }
+}
+
+function renderConfirm(){
+  const o = state.staffConfirmedOrder;
+  app.innerHTML = `
+    <div class="panel confirm-screen">
+      <div style="font-size:40px;">✅</div>
+      <h2 class="display" style="font-size:18px; margin:14px 0 4px;">Pedido enviado ao caixa!</h2>
+      <div class="confirm-num">#${String(o.number).padStart(4,'0')}</div>
+      <div style="color:var(--cream-dim); margin-bottom:20px;">${o.type==='mesa' ? 'Mesa '+o.table : 'Delivery — '+o.customer.name}</div>
+      <button class="btn-primary" id="btnNovoPedido" style="max-width:260px; margin:0 auto;">Anotar novo pedido</button>
+    </div>
+  `;
+  document.getElementById('btnNovoPedido').onclick = ()=>{ state.staffConfirmedOrder = null; renderGarcom(); };
+}
+
+/* ================= STAFF — CAIXA ================= */
+function renderCaixa(){
+  const cols = STATUS_FLOW.map(st=> ({ st, list: state.orders.filter(o=>o.status===st) }));
+  app.innerHTML = `
+    <div class="kanban">
+      ${cols.map(c=>`
+        <div class="col ${c.st}">
+          <div class="col-head">
+            <span class="col-title">${STATUS_LABEL[c.st]}</span>
+            <span class="col-count">${c.list.length}</span>
+          </div>
+          ${c.list.length===0 ? `<div class="empty-col">Nenhum pedido</div>` : c.list.map(o=>`
+            <div class="order-card ${state.newIds.has(o.id) && o.status==='novo' ? 'pulse':''}" data-order="${o.id}">
+              <div class="oc-top">
+                <span class="oc-num">#${String(o.number).padStart(4,'0')}</span>
+                <span class="oc-tag ${o.type}">${o.type==='mesa'?'Mesa':'Delivery'}</span>
+              </div>
+              <div class="oc-info">${o.type==='mesa' ? 'Mesa '+o.table : (o.customer?.name||'Cliente')} ${o.placedByCustomer?'📱':''}</div>
+              <div class="oc-items">${o.items.slice(0,3).map(i=>`${i.qty}× ${i.name}`).join('<br>')}${o.items.length>3?`<br>+ ${o.items.length-3} item(ns)`:''}</div>
+              <div class="oc-foot">
+                <span class="oc-total">${money(o.total)}</span>
+                <span class="oc-time">${timeAgo(o.createdAt)}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `).join('')}
+    </div>
+  `;
+  document.querySelectorAll('[data-order]').forEach(c=> c.onclick = ()=>{
+    const o = state.orders.find(x=>x.id===c.dataset.order);
+    state.newIds.delete(o.id);
+    openModal(o);
+  });
+}
+
+function timeAgo(iso){
+  const diff = Math.floor((Date.now() - new Date(iso).getTime())/60000);
+  if(diff<1) return 'agora';
+  if(diff<60) return `há ${diff} min`;
+  return `há ${Math.floor(diff/60)}h${diff%60}min`;
+}
+
+function openModal(o){
+  state.modalOrder = o;
+  const bg = document.createElement('div');
+  bg.className='modal-bg';
+  const idx = STATUS_FLOW.indexOf(o.status);
+  bg.innerHTML = `
+    <div class="modal">
+      <div class="modal-head">
+        <h3 class="display" style="font-size:15px; margin:0;">Pedido #${String(o.number).padStart(4,'0')}</h3>
+        <button class="modal-close" id="closeModal">✕</button>
+      </div>
+      <div class="oc-tag ${o.type}" style="display:inline-block; margin-bottom:10px;">${o.type==='mesa' ? 'Mesa '+o.table : 'Delivery'}</div>
+      ${o.placedByCustomer ? `<div style="font-size:11.5px; color:var(--cream-dim); margin-bottom:10px;">📱 Pedido feito pelo próprio cliente no app</div>` : ''}
+      ${o.type==='delivery' ? `
+        <div class="detail-line"><span>Cliente</span><span>${o.customer.name}</span></div>
+        <div class="detail-line"><span>WhatsApp</span><span>${o.customer.phone||'—'}</span></div>
+        <div class="detail-line"><span>Endereço</span><span style="text-align:right; max-width:65%;">${o.customer.address}</span></div>
+        ${o.customer.ref?`<div class="detail-line"><span>Referência</span><span>${o.customer.ref}</span></div>`:''}
+        <div class="detail-line"><span>Pagamento</span><span>${paymentLabel(o.paymentMethod)}</span></div>
+        <div class="detail-line"><span>Nota fiscal</span><span>${o.wantsInvoice?'Sim':'Não'}</span></div>
+      ` : ''}
+      <div class="section-title" style="margin:14px 0 6px;">Itens</div>
+      ${o.items.map(i=>`
+        <div class="detail-line">
+          <span>${i.qty}× ${i.name}${i.obs?`<br><span style="color:var(--cream-dim); font-size:11.5px;">Obs: ${i.obs}</span>`:''}</span>
+          <span>${money(i.price*i.qty)}</span>
+        </div>
+      `).join('')}
+      ${o.type==='delivery' ? `
+        <div class="detail-line"><span>Subtotal</span><span>${money(o.subtotal!=null ? o.subtotal : o.total-(o.deliveryFee||0))}</span></div>
+        <div class="detail-line"><span>Taxa de entrega</span><span>${money(o.deliveryFee||0)}</span></div>
+      ` : ''}
+      <div class="detail-line" style="font-weight:800; font-size:15px; border-bottom:none;"><span>Total</span><span style="color:var(--mustard);">${money(o.total)}</span></div>
+
+      <div class="section-title" style="margin:14px 0 6px;">Status</div>
+      <div class="status-row">
+        ${STATUS_FLOW.map(s=>`<button class="status-pill ${o.status===s?'current':''}" data-status="${s}">${STATUS_LABEL[s]}</button>`).join('')}
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn-print" id="btnPrint">🖨️ Imprimir ${o.wantsInvoice?'Nota Fiscal':'Cupom'}</button>
+        ${idx < STATUS_FLOW.length-1 ? `<button class="btn-advance" id="btnAdvance">Avançar → ${STATUS_LABEL[STATUS_FLOW[idx+1]]}</button>` : ''}
+      </div>
+      <button class="btn-ghost" id="btnDeleteOrder" style="width:100%; margin-top:8px; color:var(--red); border-color:#5a2a2a;">🗑 Excluir pedido</button>
+    </div>
+  `;
+  document.body.appendChild(bg);
+  document.getElementById('closeModal').onclick = ()=>{ bg.remove(); state.modalOrder=null; };
+  bg.onclick = (e)=>{ if(e.target===bg){ bg.remove(); state.modalOrder=null; } };
+  document.querySelectorAll('[data-status]').forEach(b=> b.onclick = async ()=>{
+    const newStatus = b.dataset.status;
+    const justGotReady = newStatus==='pronto' && o.status!=='pronto';
+    o.status = newStatus; o.updatedAt = new Date().toISOString();
+    await saveOrder(o); await loadOrders(); updateBadge();
+    bg.remove(); renderCaixa();
+    if(justGotReady && state.printerConfig.autoprintOnReady) printReceipt(o);
+  });
+  const advBtn = document.getElementById('btnAdvance');
+  if(advBtn) advBtn.onclick = async ()=>{
+    const newStatus = STATUS_FLOW[idx+1];
+    const justGotReady = newStatus==='pronto';
+    o.status = newStatus; o.updatedAt = new Date().toISOString();
+    await saveOrder(o); await loadOrders(); updateBadge();
+    bg.remove(); renderCaixa();
+    if(justGotReady && state.printerConfig.autoprintOnReady) printReceipt(o);
+  };
+  document.getElementById('btnPrint').onclick = ()=> printReceipt(o);
+
+  const delBtn = document.getElementById('btnDeleteOrder');
+  delBtn.onclick = function(){
+    if(this.dataset.confirm === '1'){
+      deleteOrder(o, bg);
+    } else {
+      this.dataset.confirm = '1';
+      this.textContent = '⚠️ Clique de novo para confirmar exclusão';
+      this.style.background = 'var(--red)';
+      this.style.color = '#fff';
+      this.style.borderColor = 'var(--red)';
+      setTimeout(()=>{
+        if(this.isConnected && this.dataset.confirm==='1'){
+          this.dataset.confirm='0';
+          this.textContent='🗑 Excluir pedido';
+          this.style.background='';
+          this.style.color='';
+          this.style.borderColor='';
+        }
+      }, 4000);
+    }
+  };
+}
+
+async function deleteOrder(o, modalBg){
+  try{
+    const { error } = await sb.from('orders').delete().eq('id', o.id);
+    if(error) throw error;
+    if(modalBg) modalBg.remove();
+    state.modalOrder = null;
+    state.newIds.delete(o.id);
+    await loadOrders();
+    updateBadge();
+    renderCaixa();
+    showToast(`Pedido #${String(o.number).padStart(4,'0')} excluído`);
+  }catch(err){
+    console.error('Erro ao excluir pedido:', err);
+    showToast('Não foi possível excluir o pedido. Tente novamente.');
+  }
+}
+
+function printReceipt(o){
+  const isInvoice = o.wantsInvoice;
+  const el = document.getElementById('receipt');
+  el.innerHTML = `
+    <div class="r-center">
+      <div class="r-title">D.DOG LANCHES</div>
+      <div style="font-size:11px;">Dogs &amp; Burgers Artesanais</div>
+      <div style="font-size:11px;">${isInvoice ? 'NOTA FISCAL (documento interno)' : 'CUPOM DO PEDIDO'}</div>
+    </div>
+    <div class="r-line"></div>
+    <div class="r-row"><span>Pedido</span><span>#${String(o.number).padStart(4,'0')}</span></div>
+    <div class="r-row"><span>Data</span><span>${new Date(o.createdAt).toLocaleString('pt-BR')}</span></div>
+    <div class="r-row"><span>Tipo</span><span>${o.type==='mesa' ? 'Mesa '+o.table : 'Delivery'}</span></div>
+    ${o.type==='delivery' ? `
+      <div class="r-line"></div>
+      <div class="r-row"><span>Cliente</span><span>${o.customer.name}</span></div>
+      <div class="r-row"><span>WhatsApp</span><span>${o.customer.phone||'-'}</span></div>
+      <div style="font-size:12px; margin-top:4px;">End.: ${o.customer.address}</div>
+      ${o.customer.ref ? `<div style="font-size:12px;">Ref.: ${o.customer.ref}</div>` : ''}
+      <div class="r-row" style="margin-top:4px;"><span>Pagamento</span><span>${paymentLabel(o.paymentMethod)}</span></div>
+      ${isInvoice && o.customer.cpf ? `<div style="font-size:12px;">CPF/CNPJ: ${o.customer.cpf}</div>` : ''}
+    ` : ''}
+    <div class="r-line"></div>
+    ${o.items.map(i=>`
+      <div class="r-row"><span>${i.qty}x ${i.name}</span><span>${money(i.price*i.qty)}</span></div>
+      ${i.obs?`<div style="font-size:11px; padding-left:8px;">Obs: ${i.obs}</div>`:''}
+    `).join('')}
+    <div class="r-line"></div>
+    ${o.type==='delivery' ? `
+      <div class="r-row"><span>Subtotal</span><span>${money(o.subtotal!=null ? o.subtotal : o.total-(o.deliveryFee||0))}</span></div>
+      <div class="r-row"><span>Taxa de entrega</span><span>${money(o.deliveryFee||0)}</span></div>
+      <div class="r-line"></div>
+    ` : ''}
+    <div class="r-row" style="font-size:14px; font-weight:800;"><span>TOTAL</span><span>${money(o.total)}</span></div>
+    <div class="r-line"></div>
+    <div class="r-center" style="font-size:10.5px; margin-top:6px;">
+      ${isInvoice ? 'Documento gerado pelo sistema interno da lanchonete. Não substitui NFC-e emitida por sistema fiscal homologado.' : 'Obrigado pela preferência!'}
+    </div>
+  `;
+  el.classList.add('show');
+  el.style.width = (state.printerConfig.width||80) + 'mm';
+  window.print();
+  setTimeout(()=>{ el.classList.remove('show'); el.style.width=''; }, 500);
+}
+
+function printTestReceipt(){
+  const testOrder = {
+    number: 9999,
+    createdAt: new Date().toISOString(),
+    type:'mesa',
+    table: 1,
+    items:[
+      { name:'Item de teste', price:10, qty:2, obs:'Impressão de teste' },
+      { name:'Outro item', price:5.5, qty:1, obs:'' },
+    ],
+    subtotal:25.5,
+    deliveryFee:0,
+    total:25.5,
+    wantsInvoice:false,
+    paymentMethod:'dinheiro',
+  };
+  printReceipt(testOrder);
+}
+
+/* ================= STAFF — IMPRESSORA ================= */
+function renderImpressora(){
+  const cfg = state.printerConfig;
+  app.innerHTML = `
+    <div class="panel" style="margin-bottom:14px;">
+      <div class="section-title">Como funciona</div>
+      <div style="font-size:12.5px; color:var(--cream-dim); line-height:1.6;">
+        Por segurança dos navegadores, nenhum site (nem o D.Dog, nem o iFood, nem grandes sistemas de venda) consegue se conectar direto a uma impressora do computador sem passar pela caixa de impressão do próprio navegador/Windows. O que dá pra fazer aqui: configurar o formato certo do cupom para a sua impressora, e deixar tudo pronto para que a impressão saia com 1 clique.
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:14px;">
+      <div class="section-title">Configuração da impressora</div>
+      <div class="grid" style="gap:12px; max-width:360px;">
+        <div class="field">
+          <label>Apelido da impressora (só para referência)</label>
+          <input id="printerName" value="${cfg.name||''}" placeholder="Ex: Elgin i9 - Balcão">
+        </div>
+        <div class="field">
+          <label>Largura do papel</label>
+          <select id="printerWidth">
+            <option value="58" ${cfg.width==58?'selected':''}>58mm (impressoras pequenas)</option>
+            <option value="80" ${cfg.width==80?'selected':''}>80mm (impressoras padrão)</option>
+          </select>
+        </div>
+        <label class="checkline">
+          <input type="checkbox" id="printerAutoOn" ${cfg.autoprintOnReady?'checked':''}>
+          Abrir impressão automaticamente quando o pedido for marcado como "Pronto"
+        </label>
+      </div>
+      <button class="btn-ghost" id="btnSavePrinter" style="margin-top:14px;">Salvar configuração</button>
+      <div id="printerMsg" style="font-size:12px; margin-top:8px; display:none;"></div>
+    </div>
+
+    <div class="panel">
+      <div class="section-title">Testar impressão</div>
+      <div style="font-size:12.5px; color:var(--cream-dim); margin-bottom:12px;">
+        Clique abaixo para imprimir um cupom de teste. Na caixa de impressão que abrir, escolha a impressora térmica da lanchonete.
+        Dica: para não precisar escolher toda vez, defina essa impressora como <b>impressora padrão</b> no Windows (Configurações → Dispositivos → Impressoras e scanners).
+      </div>
+      <button class="btn-primary" id="btnTestPrint" style="max-width:260px;">🖨️ Fazer impressão de teste</button>
+    </div>
+
+    <div class="panel" style="margin-top:14px; border-color:var(--ember);">
+      <div class="section-title">🚀 Impressão automática e silenciosa (avançado)</div>
+      <div style="font-size:12.5px; color:var(--cream-dim); line-height:1.6; margin-bottom:14px;">
+        Quer que o cupom saia direto na impressora, sem abrir nenhuma janela nem precisar clicar em "Imprimir"? Isso é possível instalando o <b>QZ Tray</b>, um programa gratuito e de código aberto que roda no computador do caixa e conecta o sistema direto à impressora térmica.
+        <br><br>
+        <b>Importante:</b> essa parte ainda está em preparação — o próximo passo combinado é migrar o sistema para um banco de dados real (Supabase) antes de ativar a impressão automática de verdade. Por enquanto, você já pode baixar e deixar o QZ Tray instalado e pronto no computador do caixa, que quando a integração estiver pronta é só usar.
+      </div>
+      <div class="row" style="gap:10px; flex-wrap:wrap;">
+        <a href="https://qz.io/download/" target="_blank" rel="noopener noreferrer" class="btn-primary" style="display:inline-block; text-decoration:none; text-align:center; width:auto; padding:12px 22px; margin-top:0;">⬇️ Baixar QZ Tray (site oficial)</a>
+        <a href="https://qz.io/docs/using-qz-tray" target="_blank" rel="noopener noreferrer" class="btn-ghost" style="display:inline-block; text-decoration:none; text-align:center;">📖 Guia oficial de instalação</a>
+      </div>
+      <div style="font-size:11px; color:var(--cream-dim); margin-top:12px;">
+        Baixe sempre pelo site oficial (qz.io) ou pela página de releases no GitHub (github.com/qzind/tray) — nunca por outros sites, mesmo que prometam o mesmo instalador.
+      </div>
+    </div>
+  `;
+
+  document.getElementById('btnSavePrinter').onclick = async ()=>{
+    const newCfg = {
+      name: document.getElementById('printerName').value.trim(),
+      width: parseInt(document.getElementById('printerWidth').value,10),
+      autoprintOnReady: document.getElementById('printerAutoOn').checked,
+    };
+    await savePrinterConfig(newCfg);
+    const msg = document.getElementById('printerMsg');
+    msg.style.display='block'; msg.style.color='var(--green)'; msg.textContent='Configuração salva.';
+  };
+  document.getElementById('btnTestPrint').onclick = printTestReceipt;
+}
+
+/* ================= STAFF — CARDÁPIO (ADMIN) ================= */
+function renderCardapio(){
+  app.innerHTML = `
+    <div class="panel" style="margin-bottom:14px;">
+      <div class="section-title">Segurança</div>
+      <div style="font-size:12.5px; color:var(--cream-dim); margin-bottom:12px;">Altere a senha usada para entrar no painel da equipe. É preciso confirmar a senha atual.</div>
+      <div class="grid" style="gap:10px; max-width:280px;">
+        <div class="field">
+          <label>Senha atual</label>
+          <input type="password" id="currentAdminPassword" placeholder="Senha em uso hoje">
+        </div>
+        <div class="field">
+          <label>Nova senha</label>
+          <input type="password" id="newAdminPassword" placeholder="Digite a nova senha">
+        </div>
+      </div>
+      <button class="btn-ghost" id="btnChangeAdminPassword" style="margin-top:10px;">Salvar nova senha</button>
+      <div id="adminPassMsg" style="font-size:12px; margin-top:8px; display:none;"></div>
+    </div>
+    <div class="panel" style="margin-bottom:14px;">
+      <div class="section-title">Taxa de entrega</div>
+      <div style="font-size:12.5px; color:var(--cream-dim); margin-bottom:12px;">Valor cobrado em todo pedido delivery (pedidos de mesa não têm taxa). Pode ser alterado quando precisar.</div>
+      <div class="field" style="max-width:180px;">
+        <label>Valor (R$)</label>
+        <input id="deliveryFeeInput" value="${state.deliveryFee.toFixed(2)}">
+      </div>
+      <button class="btn-ghost" id="btnSaveDeliveryFee" style="margin-top:10px;">Salvar taxa</button>
+      <div id="deliveryFeeMsg" style="font-size:12px; margin-top:8px; display:none;"></div>
+    </div>
+    <div class="panel">
+      <div class="section-title">Editar cardápio</div>
+      <div style="font-size:12.5px; color:var(--cream-dim); margin-bottom:16px;">Altere nomes e preços, remova ou adicione itens. As mudanças aparecem na hora para quem estiver anotando pedidos e para os clientes no app.</div>
+      <div id="catBlocks"></div>
+      <button class="btn-ghost" id="btnAddCat">+ Nova categoria</button>
+    </div>
+  `;
+
+  document.getElementById('btnSaveDeliveryFee').onclick = async ()=>{
+    const val = parseFloat(document.getElementById('deliveryFeeInput').value.replace(',','.'));
+    const msg = document.getElementById('deliveryFeeMsg');
+    if(isNaN(val) || val<0){
+      msg.style.display='block'; msg.style.color='var(--red)'; msg.textContent='Digite um valor válido.';
+      return;
+    }
+    await saveDeliveryFee(val);
+    msg.style.display='block'; msg.style.color='var(--green)'; msg.textContent='Taxa de entrega atualizada.';
+  };
+
+  document.getElementById('btnChangeAdminPassword').onclick = async ()=>{
+    const oldVal = document.getElementById('currentAdminPassword').value;
+    const val = document.getElementById('newAdminPassword').value;
+    const msg = document.getElementById('adminPassMsg');
+    if(!oldVal){
+      msg.style.display='block'; msg.style.color='var(--red)'; msg.textContent='Informe a senha atual.';
+      return;
+    }
+    if(!val || val.length<4){
+      msg.style.display='block'; msg.style.color='var(--red)'; msg.textContent='A nova senha deve ter pelo menos 4 caracteres.';
+      return;
+    }
+    try{
+      await changeStaffPassword(oldVal, val);
+      msg.style.display='block'; msg.style.color='var(--green)'; msg.textContent='Senha atualizada com sucesso.';
+      document.getElementById('currentAdminPassword').value='';
+      document.getElementById('newAdminPassword').value='';
+    }catch(err){
+      msg.style.display='block'; msg.style.color='var(--red)'; msg.textContent=err.message;
+    }
+  };
+
+  const blocks = document.getElementById('catBlocks');
+  blocks.innerHTML = state.menu.map((c,ci)=>`
+    <div class="cat-block">
+      <div class="cat-block-head">
+        <input class="obs-input" style="font-weight:800; font-size:14px; width:auto; flex:1; margin-top:0;" data-catname="${ci}" value="${c.name}">
+        <button class="icon-btn" data-delcat="${ci}" title="Remover categoria" style="margin-left:8px;">🗑</button>
+      </div>
+      ${c.items.map((it,ii)=>`
+        <div class="admin-item">
+          <input class="name" data-itemname="${ci}:${ii}" value="${it.name}">
+          <input class="price" data-itemprice="${ci}:${ii}" value="${it.price.toFixed(2)}">
+          <button class="icon-btn" data-delitem="${ci}:${ii}">✕</button>
+        </div>
+      `).join('')}
+      <button class="btn-ghost" data-additem="${ci}" style="margin-top:4px;">+ Item</button>
+    </div>
+  `).join('');
+
+  blocks.querySelectorAll('[data-catname]').forEach(inp=> inp.onchange = ()=>{ state.menu[inp.dataset.catname].name = inp.value; saveMenu(); });
+  blocks.querySelectorAll('[data-itemname]').forEach(inp=> inp.onchange = ()=>{
+    const [ci,ii] = inp.dataset.itemname.split(':'); state.menu[ci].items[ii].name = inp.value; saveMenu();
+  });
+  blocks.querySelectorAll('[data-itemprice]').forEach(inp=> inp.onchange = ()=>{
+    const [ci,ii] = inp.dataset.itemprice.split(':'); state.menu[ci].items[ii].price = parseFloat(inp.value.replace(',','.'))||0; saveMenu();
+  });
+  blocks.querySelectorAll('[data-delitem]').forEach(b=> b.onclick = ()=>{
+    const [ci,ii] = b.dataset.delitem.split(':'); state.menu[ci].items.splice(ii,1); saveMenu(); renderCardapio();
+  });
+  blocks.querySelectorAll('[data-delcat]').forEach(b=> b.onclick = ()=>{
+    state.menu.splice(b.dataset.delcat,1); saveMenu(); renderCardapio();
+  });
+  blocks.querySelectorAll('[data-additem]').forEach(b=> b.onclick = ()=>{
+    const ci = b.dataset.additem;
+    state.menu[ci].items.push({ id:'i'+Date.now(), name:'Novo item', price:0 });
+    saveMenu(); renderCardapio();
+  });
+  document.getElementById('btnAddCat').onclick = ()=>{
+    state.menu.push({ id:'c'+Date.now(), name:'Nova categoria', items:[] });
+    saveMenu(); renderCardapio();
+  };
+}
+
+/* ---------------- Init ---------------- */
+async function init(){
+  app.innerHTML = `<div class="empty-state"><div class="ic">🌭</div>Carregando...</div>`;
+  await loadMenu();
+  await loadDeliveryFee();
+  await loadPrinterConfig();
+  await loadOrders();
+  firstLoad = false;
+  renderTopbar();
+  render();
+  setInterval(pollOrders, 4000);
+}
+init();
+</script>
+</body>
+</html>
