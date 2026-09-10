@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Work+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/qz-tray@2.2.5/qz-tray.js"></script>
 <style>
   :root{
     --bg:#0e0a09;
@@ -336,7 +337,7 @@ let state = {
   paymentMethod:'dinheiro',
   deliveryFee:5,
   reportDate:null,
-  printerConfig:{ name:'', width:80, autoprintOnReady:false },
+  printerConfig:{ name:'', width:80, autoprintOnReady:false, useQz:false, qzPrinterName:'' },
   tableSearch:'',
   orders:[],
   newIds:new Set(),
@@ -1396,10 +1397,9 @@ async function deleteOrder(o, modalBg){
   }
 }
 
-function printReceipt(o){
+function buildReceiptHtml(o){
   const isInvoice = o.wantsInvoice;
-  const el = document.getElementById('receipt');
-  el.innerHTML = `
+  return `
     <div class="r-center">
       <div class="r-title">D.DOG LANCHES</div>
       <div style="font-size:11px;">Dogs &amp; Burgers Artesanais</div>
@@ -1435,11 +1435,48 @@ function printReceipt(o){
       ${isInvoice ? 'Documento gerado pelo sistema interno da lanchonete. Não substitui NFC-e emitida por sistema fiscal homologado.' : 'Obrigado pela preferência!'}
     </div>
   `;
+}
+
+function printReceipt(o){
+  if(state.printerConfig.useQz && state.printerConfig.qzPrinterName){
+    printViaQZ(o);
+    return;
+  }
+  const el = document.getElementById('receipt');
+  el.innerHTML = buildReceiptHtml(o);
   el.classList.add('show');
   el.style.width = (state.printerConfig.width||80) + 'mm';
   window.print();
   setTimeout(()=>{ el.classList.remove('show'); el.style.width=''; }, 500);
 }
+
+/* ---------------- Impressão automática via QZ Tray ---------------- */
+async function ensureQzConnected(){
+  if(typeof qz === 'undefined') throw new Error('QZ_NOT_LOADED');
+  if(qz.websocket.isActive()) return;
+  await qz.websocket.connect({ retries: 2, delay: 1 });
+}
+
+async function printViaQZ(o){
+  try{
+    await ensureQzConnected();
+    const widthMm = state.printerConfig.width || 80;
+    const wrappedHtml = `<div style="width:${widthMm}mm; font-family:'JetBrains Mono',monospace; color:#000;">${buildReceiptHtml(o)}</div>`;
+    const config = qz.configs.create(state.printerConfig.qzPrinterName);
+    await qz.print(config, [{ type:'pixel', format:'html', flavor:'plain', data: wrappedHtml }]);
+    showToast(`Cupom #${String(o.number).padStart(4,'0')} enviado para a impressora`);
+  }catch(err){
+    console.error('Erro ao imprimir via QZ Tray:', err);
+    showToast('Não foi possível imprimir via QZ Tray. Verifique se o programa está aberto no computador.');
+  }
+}
+
+async function findQzPrinters(){
+  await ensureQzConnected();
+  return await qz.printers.find();
+}
+
+
 
 function printTestReceipt(){
   const testOrder = {
@@ -1465,14 +1502,7 @@ function renderImpressora(){
   const cfg = state.printerConfig;
   app.innerHTML = `
     <div class="panel" style="margin-bottom:14px;">
-      <div class="section-title">Como funciona</div>
-      <div style="font-size:12.5px; color:var(--cream-dim); line-height:1.6;">
-        Por segurança dos navegadores, nenhum site (nem o D.Dog, nem o iFood, nem grandes sistemas de venda) consegue se conectar direto a uma impressora do computador sem passar pela caixa de impressão do próprio navegador/Windows. O que dá pra fazer aqui: configurar o formato certo do cupom para a sua impressora, e deixar tudo pronto para que a impressão saia com 1 clique.
-      </div>
-    </div>
-
-    <div class="panel" style="margin-bottom:14px;">
-      <div class="section-title">Configuração da impressora</div>
+      <div class="section-title">Configuração básica (impressão pela caixa do navegador)</div>
       <div class="grid" style="gap:12px; max-width:360px;">
         <div class="field">
           <label>Apelido da impressora (só para referência)</label>
@@ -1487,41 +1517,58 @@ function renderImpressora(){
         </div>
         <label class="checkline">
           <input type="checkbox" id="printerAutoOn" ${cfg.autoprintOnReady?'checked':''}>
-          Abrir impressão automaticamente quando o pedido for marcado como "Pronto"
+          Abrir/enviar impressão automaticamente quando o pedido for marcado como "Pronto"
         </label>
       </div>
       <button class="btn-ghost" id="btnSavePrinter" style="margin-top:14px;">Salvar configuração</button>
       <div id="printerMsg" style="font-size:12px; margin-top:8px; display:none;"></div>
     </div>
 
-    <div class="panel">
-      <div class="section-title">Testar impressão</div>
+    <div class="panel" style="margin-bottom:14px;">
+      <div class="section-title">Testar impressão (caixa do navegador)</div>
       <div style="font-size:12.5px; color:var(--cream-dim); margin-bottom:12px;">
-        Clique abaixo para imprimir um cupom de teste. Na caixa de impressão que abrir, escolha a impressora térmica da lanchonete.
-        Dica: para não precisar escolher toda vez, defina essa impressora como <b>impressora padrão</b> no Windows (Configurações → Dispositivos → Impressoras e scanners).
+        Imprime um cupom de teste pela caixa de impressão comum do navegador. Use isso se ainda não tiver o QZ Tray configurado abaixo.
       </div>
       <button class="btn-primary" id="btnTestPrint" style="max-width:260px;">🖨️ Fazer impressão de teste</button>
     </div>
 
-    <div class="panel" style="margin-top:14px; border-color:var(--ember);">
-      <div class="section-title">🚀 Impressão automática e silenciosa (avançado)</div>
+    <div class="panel" style="border-color:var(--ember);">
+      <div class="section-title">🚀 Impressão automática e silenciosa (QZ Tray)</div>
       <div style="font-size:12.5px; color:var(--cream-dim); line-height:1.6; margin-bottom:14px;">
-        Quer que o cupom saia direto na impressora, sem abrir nenhuma janela nem precisar clicar em "Imprimir"? Isso é possível instalando o <b>QZ Tray</b>, um programa gratuito e de código aberto que roda no computador do caixa e conecta o sistema direto à impressora térmica.
-        <br><br>
-        <b>Importante:</b> essa parte ainda está em preparação — o próximo passo combinado é migrar o sistema para um banco de dados real (Supabase) antes de ativar a impressão automática de verdade. Por enquanto, você já pode baixar e deixar o QZ Tray instalado e pronto no computador do caixa, que quando a integração estiver pronta é só usar.
+        Com o QZ Tray instalado e aberto no computador do caixa, o cupom sai direto na impressora, sem abrir nenhuma janela.
+        Na primeira vez que conectar, o QZ Tray vai mostrar um aviso de segurança perguntando se autoriza este site — isso é normal, clique em "Permitir" (ou "Remember this decision") e não aparece mais depois.
       </div>
-      <div class="row" style="gap:10px; flex-wrap:wrap;">
-        <a href="https://qz.io/download/" target="_blank" rel="noopener noreferrer" class="btn-primary" style="display:inline-block; text-decoration:none; text-align:center; width:auto; padding:12px 22px; margin-top:0;">⬇️ Baixar QZ Tray (site oficial)</a>
-        <a href="https://qz.io/docs/using-qz-tray" target="_blank" rel="noopener noreferrer" class="btn-ghost" style="display:inline-block; text-decoration:none; text-align:center;">📖 Guia oficial de instalação</a>
+      <div class="row" style="gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+        <a href="https://qz.io/download/" target="_blank" rel="noopener noreferrer" class="btn-ghost" style="display:inline-block; text-decoration:none; text-align:center;">⬇️ Baixar QZ Tray (site oficial)</a>
+        <a href="https://qz.io/docs/using-qz-tray" target="_blank" rel="noopener noreferrer" class="btn-ghost" style="display:inline-block; text-decoration:none; text-align:center;">📖 Guia oficial</a>
       </div>
-      <div style="font-size:11px; color:var(--cream-dim); margin-top:12px;">
-        Baixe sempre pelo site oficial (qz.io) ou pela página de releases no GitHub (github.com/qzind/tray) — nunca por outros sites, mesmo que prometam o mesmo instalador.
+
+      <div id="qzStatus" style="font-size:13px; margin-bottom:12px;">Status: <span style="color:var(--cream-dim);">ainda não verificado</span></div>
+      <button class="btn-ghost" id="btnQzConnect" style="margin-bottom:14px;">🔌 Conectar e detectar impressoras</button>
+
+      <div class="field" style="max-width:360px; margin-bottom:14px;">
+        <label>Impressora detectada</label>
+        <select id="qzPrinterSelect">
+          <option value="">${cfg.qzPrinterName ? cfg.qzPrinterName : 'Clique em "Conectar e detectar impressoras" acima'}</option>
+        </select>
       </div>
+
+      <label class="checkline" style="max-width:420px; margin-bottom:14px;">
+        <input type="checkbox" id="qzUseToggle" ${cfg.useQz?'checked':''}>
+        Usar QZ Tray para imprimir (em vez da caixa comum do navegador)
+      </label>
+
+      <div class="row" style="gap:10px;">
+        <button class="btn-ghost" id="btnSaveQz">Salvar impressora QZ</button>
+        <button class="btn-primary" id="btnTestQz" style="width:auto; padding:12px 20px; margin-top:0;">🖨️ Testar impressão via QZ</button>
+      </div>
+      <div id="qzMsg" style="font-size:12px; margin-top:10px; display:none;"></div>
     </div>
   `;
 
   document.getElementById('btnSavePrinter').onclick = async ()=>{
     const newCfg = {
+      ...state.printerConfig,
       name: document.getElementById('printerName').value.trim(),
       width: parseInt(document.getElementById('printerWidth').value,10),
       autoprintOnReady: document.getElementById('printerAutoOn').checked,
@@ -1531,7 +1578,57 @@ function renderImpressora(){
     msg.style.display='block'; msg.style.color='var(--green)'; msg.textContent='Configuração salva.';
   };
   document.getElementById('btnTestPrint').onclick = printTestReceipt;
+
+  const qzStatusEl = document.getElementById('qzStatus');
+  const setQzStatus = (text, color)=>{ qzStatusEl.innerHTML = `Status: <span style="color:${color};">${text}</span>`; };
+
+  document.getElementById('btnQzConnect').onclick = async ()=>{
+    if(typeof qz === 'undefined'){
+      setQzStatus('biblioteca do QZ Tray não carregou (verifique sua internet)', 'var(--red)');
+      return;
+    }
+    setQzStatus('conectando...', 'var(--mustard)');
+    try{
+      const printers = await findQzPrinters();
+      setQzStatus('conectado ✅', 'var(--green)');
+      const sel = document.getElementById('qzPrinterSelect');
+      sel.innerHTML = printers.map(p=> `<option value="${p}" ${p===cfg.qzPrinterName?'selected':''}>${p}</option>`).join('') || '<option value="">Nenhuma impressora encontrada</option>';
+    }catch(err){
+      console.error(err);
+      setQzStatus('não foi possível conectar — o QZ Tray está aberto no computador?', 'var(--red)');
+    }
+  };
+
+  document.getElementById('btnSaveQz').onclick = async ()=>{
+    const sel = document.getElementById('qzPrinterSelect');
+    const newCfg = {
+      ...state.printerConfig,
+      qzPrinterName: sel.value || state.printerConfig.qzPrinterName,
+      useQz: document.getElementById('qzUseToggle').checked,
+    };
+    await savePrinterConfig(newCfg);
+    const msg = document.getElementById('qzMsg');
+    msg.style.display='block'; msg.style.color='var(--green)'; msg.textContent='Configuração do QZ Tray salva.';
+  };
+
+  document.getElementById('btnTestQz').onclick = async ()=>{
+    const msg = document.getElementById('qzMsg');
+    const sel = document.getElementById('qzPrinterSelect');
+    const printerName = sel.value || state.printerConfig.qzPrinterName;
+    if(!printerName){
+      msg.style.display='block'; msg.style.color='var(--red)'; msg.textContent='Detecte e escolha uma impressora primeiro.';
+      return;
+    }
+    const tempCfg = { ...state.printerConfig, qzPrinterName: printerName, useQz: true };
+    const prevCfg = state.printerConfig;
+    state.printerConfig = tempCfg;
+    await printTestReceipt();
+    state.printerConfig = prevCfg;
+    msg.style.display='block'; msg.style.color='var(--green)'; msg.textContent='Cupom de teste enviado — confira se saiu na impressora.';
+  };
 }
+
+
 
 /* ================= STAFF — CARDÁPIO (ADMIN) ================= */
 function renderCardapio(){
