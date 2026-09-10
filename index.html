@@ -520,8 +520,9 @@ async function saveOrder(order){
 
 /* ---------------- Polling ---------------- */
 let firstLoad = true;
-async function pollOrders(){
+async function refreshOrdersAndReact(){
   const before = new Set(state.orders.map(o=>o.id));
+  const beforeStatus = new Map(state.orders.map(o=>[o.id, o.status]));
   await loadOrders();
   if(!firstLoad){
     const newOnes = state.orders.filter(o=> !before.has(o.id));
@@ -532,6 +533,18 @@ async function pollOrders(){
         showToast(newOnes.length===1 ? `Novo pedido recebido — ${orderLabel(newOnes[0])}` : `${newOnes.length} novos pedidos recebidos`);
       }
     }
+    // Avisa o cliente quando o status do PRÓPRIO pedido dele mudar
+    if(state.appMode==='cliente' && state.currentCustomer){
+      state.orders.forEach(o=>{
+        if(o.customer && o.customer.phone===state.currentCustomer.phone){
+          const prev = beforeStatus.get(o.id);
+          if(prev && prev!==o.status){
+            beep();
+            showToast(`Seu pedido #${String(o.number).padStart(4,'0')} agora está: ${STATUS_LABEL[o.status]}`);
+          }
+        }
+      });
+    }
   }
   firstLoad = false;
   if(state.appMode==='staff'){
@@ -541,6 +554,23 @@ async function pollOrders(){
     renderClientePedidos();
   }
 }
+
+let realtimeChannel = null;
+function subscribeRealtimeOrders(){
+  if(realtimeChannel) return;
+  try{
+    realtimeChannel = sb.channel('orders-realtime')
+      .on('postgres_changes', { event:'*', schema:'public', table:'orders' }, ()=>{ refreshOrdersAndReact(); })
+      .subscribe();
+  }catch(e){ console.error('Realtime indisponível, seguindo só com verificação periódica:', e); }
+}
+
+// Rede de segurança: se o Realtime cair silenciosamente, ainda garantimos
+// atualização em até 20s, e sempre que a aba voltar a ficar visível
+// (ex: celular saiu da tela de bloqueio) força atualização na hora.
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState==='visible') refreshOrdersAndReact();
+});
 function orderLabel(o){ return o.type==='mesa' ? `Mesa ${o.table}` : 'Delivery'; }
 function updateBadge(){
   const badge = document.getElementById('badgeCount');
@@ -1752,7 +1782,9 @@ async function init(){
   firstLoad = false;
   renderTopbar();
   render();
-  setInterval(pollOrders, 4000);
+  subscribeRealtimeOrders();
+  // Rede de segurança: verifica a cada 20s, caso o Realtime falhe silenciosamente
+  setInterval(refreshOrdersAndReact, 20000);
 }
 init();
 </script>
