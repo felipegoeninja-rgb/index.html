@@ -137,6 +137,7 @@
   }
   .menu-item-name{ font-weight:700; font-size:14.5px; }
   .menu-item-price{ color:var(--mustard); font-family:'JetBrains Mono',monospace; font-size:13.5px; margin-top:2px; }
+  .menu-item-desc{ color:var(--cream-dim); font-size:11.5px; margin-top:3px; line-height:1.4; max-width:280px; }
   .add-btn{
     background:linear-gradient(135deg, var(--ember), var(--ember-2)); color:#1a0a02; border:none;
     width:34px; height:34px; border-radius:50%; font-size:18px; font-weight:800; flex-shrink:0;
@@ -292,25 +293,25 @@
 
 const DEFAULT_MENU = [
   { id:'c1', name:'Hot Dogs', items:[
-    { id:'i1', name:'Dog Tradicional', price:14.90 },
-    { id:'i2', name:'Dog Especial D.Dog', price:19.90 },
-    { id:'i3', name:'Dog Bacon Cheddar', price:21.90 },
-    { id:'i4', name:'Dog Catupiry', price:19.90 },
+    { id:'i1', name:'Dog Tradicional', price:14.90, description:'Pão, salsicha, milho, ervilha, batata palha, molhos' },
+    { id:'i2', name:'Dog Especial D.Dog', price:19.90, description:'' },
+    { id:'i3', name:'Dog Bacon Cheddar', price:21.90, description:'' },
+    { id:'i4', name:'Dog Catupiry', price:19.90, description:'' },
   ]},
   { id:'c2', name:'Hambúrgueres', items:[
-    { id:'i5', name:'Burger Clássico', price:22.90 },
-    { id:'i6', name:'Burger Duplo Bacon', price:28.90 },
-    { id:'i7', name:'Burger Artesanal D.Dog', price:31.90 },
+    { id:'i5', name:'Burger Clássico', price:22.90, description:'' },
+    { id:'i6', name:'Burger Duplo Bacon', price:28.90, description:'' },
+    { id:'i7', name:'Burger Artesanal D.Dog', price:31.90, description:'' },
   ]},
   { id:'c3', name:'Porções', items:[
-    { id:'i8', name:'Porção de Batata Frita', price:24.90 },
-    { id:'i9', name:'Doguitos (nachos + dog)', price:29.90 },
-    { id:'i10', name:'Batata com Cheddar e Bacon', price:32.90 },
+    { id:'i8', name:'Porção de Batata Frita', price:24.90, description:'' },
+    { id:'i9', name:'Doguitos (nachos + dog)', price:29.90, description:'' },
+    { id:'i10', name:'Batata com Cheddar e Bacon', price:32.90, description:'' },
   ]},
   { id:'c4', name:'Bebidas', items:[
-    { id:'i11', name:'Refrigerante Lata', price:6.00 },
-    { id:'i12', name:'Suco Natural', price:8.00 },
-    { id:'i13', name:'Água Mineral', price:4.00 },
+    { id:'i11', name:'Refrigerante Lata', price:6.00, description:'' },
+    { id:'i12', name:'Suco Natural', price:8.00, description:'' },
+    { id:'i13', name:'Água Mineral', price:4.00, description:'' },
   ]},
 ];
 
@@ -337,7 +338,13 @@ let state = {
   paymentMethod:'dinheiro',
   deliveryFee:5,
   reportDate:null,
-  printerConfig:{ name:'', width:80, autoprintOnReady:false, useQz:false, qzPrinterName:'' },
+  printerConfig:{
+    width:80,
+    autoprintCounterOnNew:true,   // imprime o cupom na impressora do Caixa/Balcão assim que o pedido é criado
+    autoprintKitchenOnNew:true,   // imprime o cupom na impressora da Cozinha assim que o pedido é criado
+    counter:{ name:'', useQz:false, qzPrinterName:'' },
+    kitchen:{ name:'', useQz:false, qzPrinterName:'' },
+  },
   tableSearch:'',
   orders:[],
   newIds:new Set(),
@@ -448,10 +455,31 @@ async function saveDeliveryFee(val){
 }
 
 /* ---------------- Storage: configuração da impressora ---------------- */
+function migratePrinterConfig(raw){
+  const base = { width:80, autoprintCounterOnNew:true, autoprintKitchenOnNew:true, counter:{name:'',useQz:false,qzPrinterName:''}, kitchen:{name:'',useQz:false,qzPrinterName:''} };
+  if(!raw) return base;
+  if(raw.counter || raw.kitchen){
+    return {
+      width: raw.width ?? base.width,
+      autoprintCounterOnNew: raw.autoprintCounterOnNew ?? base.autoprintCounterOnNew,
+      autoprintKitchenOnNew: raw.autoprintKitchenOnNew ?? base.autoprintKitchenOnNew,
+      counter: { ...base.counter, ...(raw.counter||{}) },
+      kitchen: { ...base.kitchen, ...(raw.kitchen||{}) },
+    };
+  }
+  // Formato antigo (uma única impressora) -> migra para "counter"
+  return {
+    width: raw.width ?? base.width,
+    autoprintCounterOnNew: true,
+    autoprintKitchenOnNew: false,
+    counter: { name: raw.name||'', useQz: !!raw.useQz, qzPrinterName: raw.qzPrinterName||'' },
+    kitchen: { name:'', useQz:false, qzPrinterName:'' },
+  };
+}
 async function loadPrinterConfig(){
   try{
     const { data, error } = await sb.from('app_config').select('value').eq('key','printer-config').maybeSingle();
-    if(!error && data && data.value){ state.printerConfig = { ...state.printerConfig, ...data.value }; return; }
+    if(!error && data && data.value){ state.printerConfig = migratePrinterConfig(data.value); return; }
   }catch(e){}
   await savePrinterConfig(state.printerConfig);
 }
@@ -459,13 +487,55 @@ async function savePrinterConfig(cfg){
   state.printerConfig = cfg;
   try{ await sb.from('app_config').upsert({ key:'printer-config', value: cfg }); }catch(e){}
 }
+/* ---------------- Sessão persistente (localStorage) ---------------- */
+const SESSION_KEY_CUSTOMER = 'ddog_customer_session';
+const SESSION_KEY_STAFF = 'ddog_staff_session';
+
+function saveCustomerSession(phone, token){
+  try{ localStorage.setItem(SESSION_KEY_CUSTOMER, JSON.stringify({ phone, token })); }catch(e){}
+}
+function clearCustomerSession(){
+  try{ localStorage.removeItem(SESSION_KEY_CUSTOMER); }catch(e){}
+}
+function loadCustomerSessionRaw(){
+  try{ const raw = localStorage.getItem(SESSION_KEY_CUSTOMER); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+}
+function saveStaffSession(token){
+  try{ localStorage.setItem(SESSION_KEY_STAFF, token); }catch(e){}
+}
+function clearStaffSession(){
+  try{ localStorage.removeItem(SESSION_KEY_STAFF); }catch(e){}
+}
+function loadStaffSessionRaw(){
+  try{ return localStorage.getItem(SESSION_KEY_STAFF); }catch(e){ return null; }
+}
+
+async function tryResumeCustomerSession(){
+  const saved = loadCustomerSessionRaw();
+  if(!saved || !saved.phone || !saved.token) return null;
+  try{
+    const { data, error } = await sb.rpc('resume_customer_session', { p_phone: saved.phone, p_session_token: saved.token });
+    if(error || !data || !data.length){ clearCustomerSession(); return null; }
+    return data[0];
+  }catch(e){ return null; }
+}
+async function tryResumeStaffSession(){
+  const token = loadStaffSessionRaw();
+  if(!token) return false;
+  try{
+    const { data, error } = await sb.rpc('resume_staff_session', { p_session_token: token });
+    if(error || data !== true){ clearStaffSession(); return false; }
+    return true;
+  }catch(e){ return false; }
+}
 
 /* ---------------- Segurança: senha da equipe ---------------- */
-async function checkStaffPassword(pwd){
+async function staffLogin(pwd){
   try{
-    const { data, error } = await sb.rpc('check_staff_password', { p_password: pwd });
-    if(error) return false;
-    return data === true;
+    const { data, error } = await sb.rpc('staff_login', { p_password: pwd });
+    if(error || !data || !data.length || !data[0].ok) return false;
+    saveStaffSession(data[0].session_token);
+    return true;
   }catch(e){ return false; }
 }
 async function changeStaffPassword(oldPwd, newPwd){
@@ -474,6 +544,7 @@ async function changeStaffPassword(oldPwd, newPwd){
     if(String(error.message).includes('WRONG_PASSWORD')) throw new Error('Senha atual incorreta.');
     throw new Error('Não foi possível alterar a senha agora.');
   }
+  clearStaffSession();
 }
 
 /* ---------------- Storage: clientes ---------------- */
@@ -487,7 +558,9 @@ async function registerCustomer(data){
     if(String(error.message).includes('PHONE_EXISTS')) throw new Error('Já existe uma conta com esse WhatsApp. Faça login.');
     throw new Error('Não foi possível criar sua conta agora. Tente novamente.');
   }
-  return rows[0];
+  const record = rows[0];
+  saveCustomerSession(record.phone, record.session_token);
+  return record;
 }
 async function loginCustomer(phoneRaw, password){
   const phone = normalizePhone(phoneRaw);
@@ -497,7 +570,18 @@ async function loginCustomer(phoneRaw, password){
     if(String(error.message).includes('WRONG_PASSWORD')) throw new Error('Senha incorreta.');
     throw new Error('Não foi possível entrar agora. Tente novamente.');
   }
-  return rows[0];
+  const record = rows[0];
+  saveCustomerSession(record.phone, record.session_token);
+  return record;
+}
+async function resetCustomerPassword(phoneRaw, address, newPassword){
+  const phone = normalizePhone(phoneRaw);
+  const { error } = await sb.rpc('reset_customer_password', { p_phone: phone, p_address: address, p_new_password: newPassword });
+  if(error){
+    if(String(error.message).includes('NOT_FOUND')) throw new Error('Não encontramos uma conta com esse WhatsApp.');
+    if(String(error.message).includes('ADDRESS_MISMATCH')) throw new Error('O endereço não confere com o cadastrado.');
+    throw new Error('Não foi possível redefinir a senha agora.');
+  }
 }
 
 /* ---------------- Storage: pedidos ---------------- */
@@ -605,12 +689,18 @@ function renderTopbar(){
   }
   const staffBtn = document.getElementById('staffAccessBtn');
   staffBtn.innerHTML = state.appMode==='staff' ? '🚪 <span class="lbl-full">Sair para o App do Cliente</span>' : '🔒 <span class="lbl-full">Acesso da Equipe</span>';
-  staffBtn.onclick = ()=>{
+  staffBtn.onclick = async ()=>{
     if(state.appMode==='staff'){
       state.appMode='cliente';
       renderTopbar(); render();
     } else {
-      openStaffLoginModal();
+      const stillValid = await tryResumeStaffSession();
+      if(stillValid){
+        state.appMode='staff'; state.view='garcom';
+        renderTopbar(); render();
+      } else {
+        openStaffLoginModal();
+      }
     }
   };
 }
@@ -638,7 +728,7 @@ function openStaffLoginModal(){
   const input = document.getElementById('staffPasswordInput');
   input.focus();
   const submit = async ()=>{
-    const ok = await checkStaffPassword(input.value);
+    const ok = await staffLogin(input.value);
     if(ok){
       state.appMode='staff'; state.view='garcom';
       bg.remove();
@@ -770,6 +860,7 @@ function renderClienteConta(){
     document.getElementById('btnLogout').onclick = ()=>{
       state.currentCustomer = null;
       state.customerView = 'cardapio';
+      clearCustomerSession();
       renderTopbar(); render();
     };
     return;
@@ -788,6 +879,16 @@ function renderClienteConta(){
           <div class="field"><label>WhatsApp</label><input id="loginPhone" placeholder="(00) 00000-0000"></div>
           <div class="field"><label>Senha</label><input type="password" id="loginPassword" placeholder="Sua senha"></div>
           <button class="btn-primary" id="btnLoginSubmit">Entrar</button>
+          <button class="btn-ghost" id="btnGoReset" style="background:transparent; border:none; color:var(--cream-dim); text-decoration:underline; font-size:12.5px;">Esqueci minha senha</button>
+        </div>
+      ` : mode==='reset' ? `
+        <div class="grid" style="gap:10px;">
+          <div style="font-size:12.5px; color:var(--cream-dim); margin-bottom:2px;">Confirme seu WhatsApp e o endereço que você cadastrou, para provar que a conta é sua.</div>
+          <div class="field"><label>WhatsApp</label><input id="resetPhone" placeholder="(00) 00000-0000"></div>
+          <div class="field"><label>Endereço cadastrado</label><textarea id="resetAddress" placeholder="Digite exatamente como cadastrou"></textarea></div>
+          <div class="field"><label>Nova senha</label><input type="password" id="resetNewPassword" placeholder="Crie uma nova senha"></div>
+          <button class="btn-primary" id="btnResetSubmit">Redefinir senha</button>
+          <button class="btn-ghost" id="btnBackToLogin" style="background:transparent; border:none; color:var(--cream-dim); text-decoration:underline; font-size:12.5px;">Voltar para o login</button>
         </div>
       ` : `
         <div class="grid" style="gap:10px;">
@@ -820,6 +921,24 @@ function renderClienteConta(){
         state.customerView = 'cardapio';
         renderTopbar(); render();
       }catch(err){ showErr(err.message); btn.disabled=false; btn.textContent='Entrar'; }
+    };
+    document.getElementById('btnGoReset').onclick = ()=>{ state.authMode='reset'; renderClienteConta(); };
+  } else if(mode==='reset'){
+    document.getElementById('btnBackToLogin').onclick = ()=>{ state.authMode='login'; renderClienteConta(); };
+    document.getElementById('btnResetSubmit').onclick = async ()=>{
+      const btn = document.getElementById('btnResetSubmit');
+      const phone = document.getElementById('resetPhone').value.trim();
+      const address = document.getElementById('resetAddress').value.trim();
+      const newPassword = document.getElementById('resetNewPassword').value;
+      if(!phone || !address || !newPassword){ showErr('Preencha todos os campos.'); return; }
+      if(newPassword.length<4){ showErr('A nova senha deve ter pelo menos 4 caracteres.'); return; }
+      btn.disabled = true; btn.textContent = 'Redefinindo...';
+      try{
+        await resetCustomerPassword(phone, address, newPassword);
+        state.authMode = 'login';
+        renderClienteConta();
+        showToast('Senha redefinida! Já pode entrar com a nova senha.');
+      }catch(err){ showErr(err.message); btn.disabled=false; btn.textContent='Redefinir senha'; }
     };
   } else {
     document.getElementById('btnRegisterSubmit').onclick = async ()=>{
@@ -878,6 +997,7 @@ function renderClienteCardapio(){
             <div class="menu-item">
               <div>
                 <div class="menu-item-name">${it.name}</div>
+                ${it.description ? `<div class="menu-item-desc">${it.description}</div>` : ''}
                 <div class="menu-item-price">${money(it.price)}</div>
               </div>
               <button class="add-btn" data-add="${it.id}" data-cat="${cat.name}">+</button>
@@ -989,6 +1109,7 @@ async function submitClienteOrder(){
     state.confirmedOrder = order;
     state.cart = [];
     await loadOrders();
+    printCupomBothStations(order);
     renderClienteCardapio();
   }catch(err){
     console.error('Erro ao enviar pedido:', err);
@@ -1083,6 +1204,7 @@ function renderGarcom(){
               <div class="menu-item">
                 <div>
                   <div class="menu-item-name">${it.name}</div>
+                  ${it.description ? `<div class="menu-item-desc">${it.description}</div>` : ''}
                   <div class="menu-item-price">${money(it.price)}</div>
                 </div>
                 <button class="add-btn" data-add="${it.id}" data-cat="${cat.name}">+</button>
@@ -1254,6 +1376,7 @@ async function submitOrder(){
     state.paymentMethod = 'dinheiro';
     await loadOrders();
     updateBadge();
+    printCupomBothStations(order);
     renderGarcom();
   }catch(err){
     console.error('Erro ao enviar pedido:', err);
@@ -1359,7 +1482,11 @@ function openModal(o){
       </div>
 
       <div class="modal-actions">
-        <button class="btn-print" id="btnPrint">🖨️ Imprimir ${o.wantsInvoice?'Nota Fiscal':'Cupom'}</button>
+        <button class="btn-print" id="btnPrintCupomCaixa">🖨️ Reimprimir Cupom (Caixa)</button>
+        <button class="btn-print" id="btnPrintCupomCozinha">🍳 Reimprimir Cupom (Cozinha)</button>
+      </div>
+      <div class="modal-actions" style="margin-top:8px;">
+        <button class="btn-print" id="btnPrintNota" style="background:var(--blue); color:#fff;">🧾 Imprimir Nota Fiscal</button>
         ${idx < STATUS_FLOW.length-1 ? `<button class="btn-advance" id="btnAdvance">Avançar → ${STATUS_LABEL[STATUS_FLOW[idx+1]]}</button>` : ''}
       </div>
       <button class="btn-ghost" id="btnDeleteOrder" style="width:100%; margin-top:8px; color:var(--red); border-color:#5a2a2a;">🗑 Excluir pedido</button>
@@ -1370,22 +1497,20 @@ function openModal(o){
   bg.onclick = (e)=>{ if(e.target===bg){ bg.remove(); state.modalOrder=null; } };
   document.querySelectorAll('[data-status]').forEach(b=> b.onclick = async ()=>{
     const newStatus = b.dataset.status;
-    const justGotReady = newStatus==='pronto' && o.status!=='pronto';
     o.status = newStatus; o.updatedAt = new Date().toISOString();
     await saveOrder(o); await loadOrders(); updateBadge();
     bg.remove(); renderCaixa();
-    if(justGotReady && state.printerConfig.autoprintOnReady) printReceipt(o);
   });
   const advBtn = document.getElementById('btnAdvance');
   if(advBtn) advBtn.onclick = async ()=>{
     const newStatus = STATUS_FLOW[idx+1];
-    const justGotReady = newStatus==='pronto';
     o.status = newStatus; o.updatedAt = new Date().toISOString();
     await saveOrder(o); await loadOrders(); updateBadge();
     bg.remove(); renderCaixa();
-    if(justGotReady && state.printerConfig.autoprintOnReady) printReceipt(o);
   };
-  document.getElementById('btnPrint').onclick = ()=> printReceipt(o);
+  document.getElementById('btnPrintCupomCaixa').onclick = ()=> printCupomStation(o, 'counter');
+  document.getElementById('btnPrintCupomCozinha').onclick = ()=> printCupomStation(o, 'kitchen');
+  document.getElementById('btnPrintNota').onclick = ()=> printNotaFiscal(o);
 
   const delBtn = document.getElementById('btnDeleteOrder');
   delBtn.onclick = function(){
@@ -1427,8 +1552,8 @@ async function deleteOrder(o, modalBg){
   }
 }
 
-function buildReceiptHtml(o){
-  const isInvoice = o.wantsInvoice;
+function buildReceiptHtml(o, docType){
+  const isInvoice = docType === 'nota';
   return `
     <div class="r-center">
       <div class="r-title">D.DOG LANCHES</div>
@@ -1462,22 +1587,39 @@ function buildReceiptHtml(o){
     <div class="r-row" style="font-size:14px; font-weight:800;"><span>TOTAL</span><span>${money(o.total)}</span></div>
     <div class="r-line"></div>
     <div class="r-center" style="font-size:10.5px; margin-top:6px;">
-      ${isInvoice ? 'Documento gerado pelo sistema interno da lanchonete. Não substitui NFC-e emitida por sistema fiscal homologado.' : 'Obrigado pela preferência!'}
+      ${isInvoice ? 'Documento gerado pelo sistema interno da lanchonete. Não substitui NFC-e emitida por sistema fiscal homologado — depende do CNPJ/certificado ainda não configurados.' : 'Obrigado pela preferência!'}
     </div>
   `;
 }
 
-function printReceipt(o){
-  if(state.printerConfig.useQz && state.printerConfig.qzPrinterName){
-    printViaQZ(o);
+function printDocument(station, contentHtml, docLabel){
+  const stationCfg = (state.printerConfig && state.printerConfig[station]) || {};
+  if(stationCfg.useQz && stationCfg.qzPrinterName){
+    printViaQZ(stationCfg.qzPrinterName, contentHtml, docLabel);
     return;
   }
   const el = document.getElementById('receipt');
-  el.innerHTML = buildReceiptHtml(o);
+  el.innerHTML = contentHtml;
   el.classList.add('show');
   el.style.width = (state.printerConfig.width||80) + 'mm';
   window.print();
   setTimeout(()=>{ el.classList.remove('show'); el.style.width=''; }, 500);
+}
+
+// Cupom = pedido + dados do cliente. Sai automaticamente nas DUAS impressoras
+// (cozinha e balcão) assim que o pedido é criado.
+function printCupomBothStations(o){
+  const html = buildReceiptHtml(o, 'cupom');
+  if(state.printerConfig.autoprintCounterOnNew) printDocument('counter', html, `Cupom #${String(o.number).padStart(4,'0')} (Caixa)`);
+  if(state.printerConfig.autoprintKitchenOnNew) printDocument('kitchen', html, `Cupom #${String(o.number).padStart(4,'0')} (Cozinha)`);
+}
+function printCupomStation(o, station){
+  printDocument(station, buildReceiptHtml(o, 'cupom'), `Cupom #${String(o.number).padStart(4,'0')} (${station==='kitchen'?'Cozinha':'Caixa'})`);
+}
+// Nota Fiscal = documento diferente do cupom. NUNCA automática — só quando
+// alguém da equipe clica no botão.
+function printNotaFiscal(o){
+  printDocument('counter', buildReceiptHtml(o, 'nota'), `Nota Fiscal #${String(o.number).padStart(4,'0')}`);
 }
 
 /* ---------------- Impressão automática via QZ Tray ---------------- */
@@ -1487,17 +1629,17 @@ async function ensureQzConnected(){
   await qz.websocket.connect({ retries: 2, delay: 1 });
 }
 
-async function printViaQZ(o){
+async function printViaQZ(qzPrinterName, contentHtml, docLabel){
   try{
     await ensureQzConnected();
     const widthMm = state.printerConfig.width || 80;
-    const wrappedHtml = `<div style="width:${widthMm}mm; font-family:'JetBrains Mono',monospace; color:#000;">${buildReceiptHtml(o)}</div>`;
-    const config = qz.configs.create(state.printerConfig.qzPrinterName);
+    const wrappedHtml = `<div style="width:${widthMm}mm; font-family:'JetBrains Mono',monospace; color:#000;">${contentHtml}</div>`;
+    const config = qz.configs.create(qzPrinterName);
     await qz.print(config, [{ type:'pixel', format:'html', flavor:'plain', data: wrappedHtml }]);
-    showToast(`Cupom #${String(o.number).padStart(4,'0')} enviado para a impressora`);
+    showToast(`${docLabel} enviado para a impressora`);
   }catch(err){
     console.error('Erro ao imprimir via QZ Tray:', err);
-    showToast('Não foi possível imprimir via QZ Tray. Verifique se o programa está aberto no computador.');
+    showToast(`Não foi possível imprimir (${docLabel}). O QZ Tray está aberto no computador?`);
   }
 }
 
@@ -1506,9 +1648,7 @@ async function findQzPrinters(){
   return await qz.printers.find();
 }
 
-
-
-function printTestReceipt(){
+function printTestReceipt(station){
   const testOrder = {
     number: 9999,
     createdAt: new Date().toISOString(),
@@ -1524,138 +1664,154 @@ function printTestReceipt(){
     wantsInvoice:false,
     paymentMethod:'dinheiro',
   };
-  printReceipt(testOrder);
+  printCupomStation(testOrder, station || 'counter');
 }
 
 /* ================= STAFF — IMPRESSORA ================= */
 function renderImpressora(){
   const cfg = state.printerConfig;
-  app.innerHTML = `
-    <div class="panel" style="margin-bottom:14px;">
-      <div class="section-title">Configuração básica (impressão pela caixa do navegador)</div>
-      <div class="grid" style="gap:12px; max-width:360px;">
-        <div class="field">
-          <label>Apelido da impressora (só para referência)</label>
-          <input id="printerName" value="${cfg.name||''}" placeholder="Ex: Elgin i9 - Balcão">
+  const stationBlock = (station, title, icon)=>{
+    const s = cfg[station];
+    return `
+      <div class="panel" style="margin-bottom:14px;">
+        <div class="section-title">${icon} ${title}</div>
+        <div class="field" style="max-width:320px; margin-bottom:12px;">
+          <label>Apelido (só para referência)</label>
+          <input id="printerName_${station}" value="${s.name||''}" placeholder="Ex: Elgin i9">
         </div>
+        <div id="qzStatus_${station}" style="font-size:13px; margin-bottom:10px;">Status: <span style="color:var(--cream-dim);">ainda não verificado</span></div>
+        <button class="btn-ghost" id="btnQzConnect_${station}" style="margin-bottom:12px;">🔌 Conectar e detectar impressoras</button>
+        <div class="field" style="max-width:360px; margin-bottom:12px;">
+          <label>Impressora detectada</label>
+          <select id="qzPrinterSelect_${station}">
+            <option value="">${s.qzPrinterName ? s.qzPrinterName : 'Clique em "Conectar e detectar impressoras"'}</option>
+          </select>
+        </div>
+        <label class="checkline" style="max-width:420px; margin-bottom:12px;">
+          <input type="checkbox" id="qzUseToggle_${station}" ${s.useQz?'checked':''}>
+          Usar QZ Tray para imprimir aqui (em vez da caixa comum do navegador)
+        </label>
+        <div class="row" style="gap:10px;">
+          <button class="btn-ghost" id="btnSaveStation_${station}">Salvar</button>
+          <button class="btn-primary" id="btnTestStation_${station}" style="width:auto; padding:12px 20px; margin-top:0;">🖨️ Testar impressão</button>
+        </div>
+        <div id="stationMsg_${station}" style="font-size:12px; margin-top:10px; display:none;"></div>
+      </div>
+    `;
+  };
+
+  app.innerHTML = `
+    <div class="panel" style="margin-bottom:14px; border-color:var(--ember);">
+      <div class="section-title">Como funciona aqui</div>
+      <div style="font-size:12.5px; color:var(--cream-dim); line-height:1.6;">
+        <b>Cupom</b> = o pedido + dados do cliente. Sai <b>automaticamente nas duas impressoras</b> (cozinha e balcão) assim que o pedido é criado — ninguém precisa clicar em nada.<br><br>
+        <b>Nota Fiscal</b> = um documento diferente do cupom. Só é impressa se alguém da equipe clicar no botão "Imprimir Nota Fiscal" no pedido, lá no Caixa — nunca sai sozinha. (Por enquanto ainda é um documento interno, sem validade jurídica — isso muda quando o CNPJ e o certificado digital estiverem prontos.)
+      </div>
+    </div>
+
+    <div class="panel" style="margin-bottom:14px;">
+      <div class="section-title">Configuração geral</div>
+      <div class="grid" style="gap:12px; max-width:280px;">
         <div class="field">
-          <label>Largura do papel</label>
+          <label>Largura do papel (das duas impressoras)</label>
           <select id="printerWidth">
             <option value="58" ${cfg.width==58?'selected':''}>58mm (impressoras pequenas)</option>
             <option value="80" ${cfg.width==80?'selected':''}>80mm (impressoras padrão)</option>
           </select>
         </div>
-        <label class="checkline">
-          <input type="checkbox" id="printerAutoOn" ${cfg.autoprintOnReady?'checked':''}>
-          Abrir/enviar impressão automaticamente quando o pedido for marcado como "Pronto"
+      </div>
+      <div style="margin-top:14px;">
+        <label class="checkline" style="max-width:460px; margin-bottom:10px;">
+          <input type="checkbox" id="printerAutoCounter" ${cfg.autoprintCounterOnNew?'checked':''}>
+          Imprimir o Cupom automaticamente na impressora do Caixa assim que o pedido é criado
+        </label>
+        <label class="checkline" style="max-width:460px;">
+          <input type="checkbox" id="printerAutoKitchen" ${cfg.autoprintKitchenOnNew?'checked':''}>
+          Imprimir o Cupom automaticamente na impressora da Cozinha assim que o pedido é criado
         </label>
       </div>
-      <button class="btn-ghost" id="btnSavePrinter" style="margin-top:14px;">Salvar configuração</button>
-      <div id="printerMsg" style="font-size:12px; margin-top:8px; display:none;"></div>
+      <button class="btn-ghost" id="btnSaveGeneral" style="margin-top:14px;">Salvar configuração geral</button>
+      <div id="generalMsg" style="font-size:12px; margin-top:8px; display:none;"></div>
     </div>
 
-    <div class="panel" style="margin-bottom:14px;">
-      <div class="section-title">Testar impressão (caixa do navegador)</div>
-      <div style="font-size:12.5px; color:var(--cream-dim); margin-bottom:12px;">
-        Imprime um cupom de teste pela caixa de impressão comum do navegador. Use isso se ainda não tiver o QZ Tray configurado abaixo.
-      </div>
-      <button class="btn-primary" id="btnTestPrint" style="max-width:260px;">🖨️ Fazer impressão de teste</button>
-    </div>
+    ${stationBlock('counter', 'Impressora do Caixa/Balcão', '🖨️')}
+    ${stationBlock('kitchen', 'Impressora da Cozinha', '🍳')}
 
     <div class="panel" style="border-color:var(--ember);">
-      <div class="section-title">🚀 Impressão automática e silenciosa (QZ Tray)</div>
+      <div class="section-title">🚀 Sobre a impressão automática (QZ Tray)</div>
       <div style="font-size:12.5px; color:var(--cream-dim); line-height:1.6; margin-bottom:14px;">
-        Com o QZ Tray instalado e aberto no computador do caixa, o cupom sai direto na impressora, sem abrir nenhuma janela.
-        Na primeira vez que conectar, o QZ Tray vai mostrar um aviso de segurança perguntando se autoriza este site — isso é normal, clique em "Permitir" (ou "Remember this decision") e não aparece mais depois.
+        Com o QZ Tray instalado e aberto no computador, cada impressora acima pode imprimir sozinha, sem abrir nenhuma janela — dá pra ligar as duas ao mesmo tempo. Na primeira conexão, o QZ Tray pede autorização uma vez só.
       </div>
-      <div class="row" style="gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+      <div class="row" style="gap:10px; flex-wrap:wrap;">
         <a href="https://qz.io/download/" target="_blank" rel="noopener noreferrer" class="btn-ghost" style="display:inline-block; text-decoration:none; text-align:center;">⬇️ Baixar QZ Tray (site oficial)</a>
         <a href="https://qz.io/docs/using-qz-tray" target="_blank" rel="noopener noreferrer" class="btn-ghost" style="display:inline-block; text-decoration:none; text-align:center;">📖 Guia oficial</a>
       </div>
-
-      <div id="qzStatus" style="font-size:13px; margin-bottom:12px;">Status: <span style="color:var(--cream-dim);">ainda não verificado</span></div>
-      <button class="btn-ghost" id="btnQzConnect" style="margin-bottom:14px;">🔌 Conectar e detectar impressoras</button>
-
-      <div class="field" style="max-width:360px; margin-bottom:14px;">
-        <label>Impressora detectada</label>
-        <select id="qzPrinterSelect">
-          <option value="">${cfg.qzPrinterName ? cfg.qzPrinterName : 'Clique em "Conectar e detectar impressoras" acima'}</option>
-        </select>
-      </div>
-
-      <label class="checkline" style="max-width:420px; margin-bottom:14px;">
-        <input type="checkbox" id="qzUseToggle" ${cfg.useQz?'checked':''}>
-        Usar QZ Tray para imprimir (em vez da caixa comum do navegador)
-      </label>
-
-      <div class="row" style="gap:10px;">
-        <button class="btn-ghost" id="btnSaveQz">Salvar impressora QZ</button>
-        <button class="btn-primary" id="btnTestQz" style="width:auto; padding:12px 20px; margin-top:0;">🖨️ Testar impressão via QZ</button>
-      </div>
-      <div id="qzMsg" style="font-size:12px; margin-top:10px; display:none;"></div>
     </div>
   `;
 
-  document.getElementById('btnSavePrinter').onclick = async ()=>{
+  document.getElementById('btnSaveGeneral').onclick = async ()=>{
     const newCfg = {
       ...state.printerConfig,
-      name: document.getElementById('printerName').value.trim(),
       width: parseInt(document.getElementById('printerWidth').value,10),
-      autoprintOnReady: document.getElementById('printerAutoOn').checked,
+      autoprintCounterOnNew: document.getElementById('printerAutoCounter').checked,
+      autoprintKitchenOnNew: document.getElementById('printerAutoKitchen').checked,
     };
     await savePrinterConfig(newCfg);
-    const msg = document.getElementById('printerMsg');
+    const msg = document.getElementById('generalMsg');
     msg.style.display='block'; msg.style.color='var(--green)'; msg.textContent='Configuração salva.';
   };
-  document.getElementById('btnTestPrint').onclick = printTestReceipt;
 
-  const qzStatusEl = document.getElementById('qzStatus');
-  const setQzStatus = (text, color)=>{ qzStatusEl.innerHTML = `Status: <span style="color:${color};">${text}</span>`; };
+  ['counter','kitchen'].forEach(station=>{
+    const statusEl = document.getElementById('qzStatus_'+station);
+    const setStatus = (text, color)=>{ statusEl.innerHTML = `Status: <span style="color:${color};">${text}</span>`; };
 
-  document.getElementById('btnQzConnect').onclick = async ()=>{
-    if(typeof qz === 'undefined'){
-      setQzStatus('biblioteca do QZ Tray não carregou (verifique sua internet)', 'var(--red)');
-      return;
-    }
-    setQzStatus('conectando...', 'var(--mustard)');
-    try{
-      const printers = await findQzPrinters();
-      setQzStatus('conectado ✅', 'var(--green)');
-      const sel = document.getElementById('qzPrinterSelect');
-      sel.innerHTML = printers.map(p=> `<option value="${p}" ${p===cfg.qzPrinterName?'selected':''}>${p}</option>`).join('') || '<option value="">Nenhuma impressora encontrada</option>';
-    }catch(err){
-      console.error(err);
-      setQzStatus('não foi possível conectar — o QZ Tray está aberto no computador?', 'var(--red)');
-    }
-  };
-
-  document.getElementById('btnSaveQz').onclick = async ()=>{
-    const sel = document.getElementById('qzPrinterSelect');
-    const newCfg = {
-      ...state.printerConfig,
-      qzPrinterName: sel.value || state.printerConfig.qzPrinterName,
-      useQz: document.getElementById('qzUseToggle').checked,
+    document.getElementById('btnQzConnect_'+station).onclick = async ()=>{
+      if(typeof qz === 'undefined'){
+        setStatus('biblioteca do QZ Tray não carregou (verifique sua internet)', 'var(--red)');
+        return;
+      }
+      setStatus('conectando...', 'var(--mustard)');
+      try{
+        const printers = await findQzPrinters();
+        setStatus('conectado ✅', 'var(--green)');
+        const sel = document.getElementById('qzPrinterSelect_'+station);
+        const current = state.printerConfig[station].qzPrinterName;
+        sel.innerHTML = printers.map(p=> `<option value="${p}" ${p===current?'selected':''}>${p}</option>`).join('') || '<option value="">Nenhuma impressora encontrada</option>';
+      }catch(err){
+        console.error(err);
+        setStatus('não foi possível conectar — o QZ Tray está aberto no computador?', 'var(--red)');
+      }
     };
-    await savePrinterConfig(newCfg);
-    const msg = document.getElementById('qzMsg');
-    msg.style.display='block'; msg.style.color='var(--green)'; msg.textContent='Configuração do QZ Tray salva.';
-  };
 
-  document.getElementById('btnTestQz').onclick = async ()=>{
-    const msg = document.getElementById('qzMsg');
-    const sel = document.getElementById('qzPrinterSelect');
-    const printerName = sel.value || state.printerConfig.qzPrinterName;
-    if(!printerName){
-      msg.style.display='block'; msg.style.color='var(--red)'; msg.textContent='Detecte e escolha uma impressora primeiro.';
-      return;
-    }
-    const tempCfg = { ...state.printerConfig, qzPrinterName: printerName, useQz: true };
-    const prevCfg = state.printerConfig;
-    state.printerConfig = tempCfg;
-    await printTestReceipt();
-    state.printerConfig = prevCfg;
-    msg.style.display='block'; msg.style.color='var(--green)'; msg.textContent='Cupom de teste enviado — confira se saiu na impressora.';
-  };
+    document.getElementById('btnSaveStation_'+station).onclick = async ()=>{
+      const sel = document.getElementById('qzPrinterSelect_'+station);
+      const newCfg = { ...state.printerConfig };
+      newCfg[station] = {
+        name: document.getElementById('printerName_'+station).value.trim(),
+        qzPrinterName: sel.value || state.printerConfig[station].qzPrinterName,
+        useQz: document.getElementById('qzUseToggle_'+station).checked,
+      };
+      await savePrinterConfig(newCfg);
+      const msg = document.getElementById('stationMsg_'+station);
+      msg.style.display='block'; msg.style.color='var(--green)'; msg.textContent='Configuração salva.';
+    };
+
+    document.getElementById('btnTestStation_'+station).onclick = async ()=>{
+      const msg = document.getElementById('stationMsg_'+station);
+      const sel = document.getElementById('qzPrinterSelect_'+station);
+      const printerName = sel.value || state.printerConfig[station].qzPrinterName;
+      if(printerName){
+        const prevCfg = state.printerConfig;
+        state.printerConfig = { ...state.printerConfig, [station]: { ...state.printerConfig[station], qzPrinterName: printerName, useQz: true } };
+        printTestReceipt(station);
+        state.printerConfig = prevCfg;
+        msg.style.display='block'; msg.style.color='var(--green)'; msg.textContent='Enviado — confira se saiu na impressora.';
+      } else {
+        printTestReceipt(station);
+        msg.style.display='block'; msg.style.color='var(--green)'; msg.textContent='Abrindo caixa de impressão do navegador...';
+      }
+    };
+  });
 }
 
 
@@ -1678,6 +1834,9 @@ function renderCardapio(){
       </div>
       <button class="btn-ghost" id="btnChangeAdminPassword" style="margin-top:10px;">Salvar nova senha</button>
       <div id="adminPassMsg" style="font-size:12px; margin-top:8px; display:none;"></div>
+      <div style="border-top:1px dashed var(--line); margin:16px 0 12px;"></div>
+      <div style="font-size:12.5px; color:var(--cream-dim); margin-bottom:10px;">Este aparelho fica lembrado como "equipe" automaticamente. Se for um computador compartilhado ou público, encerre a sessão ao sair.</div>
+      <button class="btn-ghost" id="btnStaffLogout" style="color:var(--red); border-color:#5a2a2a;">🚪 Encerrar sessão da equipe neste aparelho</button>
     </div>
     <div class="panel" style="margin-bottom:14px;">
       <div class="section-title">Taxa de entrega</div>
@@ -1730,6 +1889,12 @@ function renderCardapio(){
     }
   };
 
+  document.getElementById('btnStaffLogout').onclick = ()=>{
+    clearStaffSession();
+    state.appMode = 'cliente';
+    renderTopbar(); render();
+  };
+
   const blocks = document.getElementById('catBlocks');
   blocks.innerHTML = state.menu.map((c,ci)=>`
     <div class="cat-block">
@@ -1738,10 +1903,13 @@ function renderCardapio(){
         <button class="icon-btn" data-delcat="${ci}" title="Remover categoria" style="margin-left:8px;">🗑</button>
       </div>
       ${c.items.map((it,ii)=>`
-        <div class="admin-item">
-          <input class="name" data-itemname="${ci}:${ii}" value="${it.name}">
-          <input class="price" data-itemprice="${ci}:${ii}" value="${it.price.toFixed(2)}">
-          <button class="icon-btn" data-delitem="${ci}:${ii}">✕</button>
+        <div class="admin-item-block" style="margin-bottom:10px; padding-bottom:8px; border-bottom:1px dashed var(--line);">
+          <div class="admin-item" style="margin-bottom:6px;">
+            <input class="name" data-itemname="${ci}:${ii}" value="${it.name}">
+            <input class="price" data-itemprice="${ci}:${ii}" value="${it.price.toFixed(2)}">
+            <button class="icon-btn" data-delitem="${ci}:${ii}">✕</button>
+          </div>
+          <input class="obs-input" style="margin-top:0;" data-itemdesc="${ci}:${ii}" value="${it.description||''}" placeholder="O que tem dentro? Ex: pão, salsicha, tomate, alface...">
         </div>
       `).join('')}
       <button class="btn-ghost" data-additem="${ci}" style="margin-top:4px;">+ Item</button>
@@ -1755,6 +1923,9 @@ function renderCardapio(){
   blocks.querySelectorAll('[data-itemprice]').forEach(inp=> inp.onchange = ()=>{
     const [ci,ii] = inp.dataset.itemprice.split(':'); state.menu[ci].items[ii].price = parseFloat(inp.value.replace(',','.'))||0; saveMenu();
   });
+  blocks.querySelectorAll('[data-itemdesc]').forEach(inp=> inp.onchange = ()=>{
+    const [ci,ii] = inp.dataset.itemdesc.split(':'); state.menu[ci].items[ii].description = inp.value; saveMenu();
+  });
   blocks.querySelectorAll('[data-delitem]').forEach(b=> b.onclick = ()=>{
     const [ci,ii] = b.dataset.delitem.split(':'); state.menu[ci].items.splice(ii,1); saveMenu(); renderCardapio();
   });
@@ -1763,7 +1934,7 @@ function renderCardapio(){
   });
   blocks.querySelectorAll('[data-additem]').forEach(b=> b.onclick = ()=>{
     const ci = b.dataset.additem;
-    state.menu[ci].items.push({ id:'i'+Date.now(), name:'Novo item', price:0 });
+    state.menu[ci].items.push({ id:'i'+Date.now(), name:'Novo item', price:0, description:'' });
     saveMenu(); renderCardapio();
   });
   document.getElementById('btnAddCat').onclick = ()=>{
@@ -1780,6 +1951,18 @@ async function init(){
   await loadPrinterConfig();
   await loadOrders();
   firstLoad = false;
+
+  const resumedCustomer = await tryResumeCustomerSession();
+  if(resumedCustomer){
+    state.currentCustomer = resumedCustomer;
+    state.customer = { name:resumedCustomer.name, phone:resumedCustomer.phone, address:resumedCustomer.address, ref:resumedCustomer.ref||'', wantsInvoice:false, cpf:'' };
+  }
+  const resumedStaff = await tryResumeStaffSession();
+  if(resumedStaff){
+    state.appMode = 'staff';
+    state.view = 'garcom';
+  }
+
   renderTopbar();
   render();
   subscribeRealtimeOrders();
