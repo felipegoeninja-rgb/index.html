@@ -181,7 +181,7 @@
   .order-card.pulse{ animation:pulseCard 1.1s ease-in-out infinite; border-color:var(--ember); }
   @keyframes pulseCard{ 0%,100%{ box-shadow:0 0 0 0 rgba(255,90,31,.5);} 50%{ box-shadow:0 0 0 6px rgba(255,90,31,0);} }
   .oc-top{ display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; }
-  .oc-num{ font-family:'JetBrains Mono',monospace; font-weight:700; color:var(--mustard); font-size:13px; }
+  .oc-num{ font-family:'JetBrains Mono',monospace; font-weight:800; color:var(--mustard); font-size:19px; letter-spacing:.5px; }
   .oc-tag{ font-size:10.5px; padding:2px 7px; border-radius:6px; font-weight:800; text-transform:uppercase; }
   .oc-tag.mesa{ background:rgba(77,163,255,.15); color:var(--blue); }
   .oc-tag.delivery{ background:rgba(62,207,120,.15); color:var(--green); }
@@ -652,12 +652,30 @@ async function saveOrder(order){
   if(error) throw error;
 }
 
+/* ---------------- Computador de impressão (caixa) ---------------- */
+// A impressão automática acontece SÓ no aparelho marcado como "computador de impressão"
+// (o do caixa). Assim, quando um cliente faz o pedido pelo celular, o cupom sai no
+// caixa/cozinha da lanchonete — e não no celular dele.
+const PRINT_STATION_KEY = 'ddog_print_station';
+function isPrintStation(){ try{ return localStorage.getItem(PRINT_STATION_KEY)==='1'; }catch(e){ return false; } }
+function setPrintStation(v){ try{ if(v) localStorage.setItem(PRINT_STATION_KEY,'1'); else localStorage.removeItem(PRINT_STATION_KEY); }catch(e){} }
+const printedIds = new Set();
+function markExistingOrdersAsPrinted(){ state.orders.forEach(o=> printedIds.add(o.id)); }
+function autoPrintNewOrders(){
+  state.orders.forEach(o=>{
+    if(printedIds.has(o.id)) return;
+    printedIds.add(o.id);
+    if(isPrintStation() && o.status==='novo') printCupomBothStations(o);
+  });
+}
+
 /* ---------------- Polling ---------------- */
 let firstLoad = true;
 async function refreshOrdersAndReact(){
   const before = new Set(state.orders.map(o=>o.id));
   const beforeStatus = new Map(state.orders.map(o=>[o.id, o.status]));
   await loadOrders();
+  autoPrintNewOrders();
   if(!firstLoad){
     const newOnes = state.orders.filter(o=> !before.has(o.id));
     if(newOnes.length){
@@ -1159,7 +1177,7 @@ async function submitClienteOrder(){
     state.confirmedOrder = order;
     state.cart = [];
     await loadOrders();
-    printCupomBothStations(order);
+    autoPrintNewOrders();
     renderClienteCardapio();
   }catch(err){
     console.error('Erro ao enviar pedido:', err);
@@ -1426,7 +1444,7 @@ async function submitOrder(){
     state.paymentMethod = 'dinheiro';
     await loadOrders();
     updateBadge();
-    printCupomBothStations(order);
+    autoPrintNewOrders();
     renderGarcom();
   }catch(err){
     console.error('Erro ao enviar pedido:', err);
@@ -1500,7 +1518,7 @@ function openModal(o){
   bg.innerHTML = `
     <div class="modal">
       <div class="modal-head">
-        <h3 class="display" style="font-size:15px; margin:0;">Pedido #${String(o.number).padStart(4,'0')}</h3>
+        <h3 class="display" style="font-size:22px; margin:0; color:var(--mustard);">#${String(o.number).padStart(4,'0')}</h3>
         <button class="modal-close" id="closeModal">✕</button>
       </div>
       <div class="oc-tag ${o.type}" style="display:inline-block; margin-bottom:10px;">${o.type==='mesa' ? 'Mesa '+o.table : 'Delivery'}</div>
@@ -1759,6 +1777,17 @@ function renderImpressora(){
       </div>
     </div>
 
+    <div class="panel" style="margin-bottom:14px; border-color:var(--green);">
+      <div class="section-title">Este aparelho</div>
+      <label class="checkline" style="max-width:520px;">
+        <input type="checkbox" id="printStationToggle" ${isPrintStation()?'checked':''}>
+        Este é o computador de impressão (o do caixa, ligado nas impressoras)
+      </label>
+      <div style="font-size:12px; color:var(--cream-dim); margin-top:8px; line-height:1.5;">
+        Marque isto <b>só no computador do caixa</b>, e deixe o sistema aberto nele (em apenas uma aba). Os pedidos novos — inclusive os feitos pelos clientes no celular — serão impressos automaticamente por esse computador. Em celulares e outros aparelhos, deixe desmarcado.
+      </div>
+    </div>
+
     <div class="panel" style="margin-bottom:14px;">
       <div class="section-title">Configuração geral</div>
       <div class="grid" style="gap:12px; max-width:280px;">
@@ -1798,6 +1827,8 @@ function renderImpressora(){
       </div>
     </div>
   `;
+
+  document.getElementById('printStationToggle').onchange = (e)=>{ setPrintStation(e.target.checked); showToast(e.target.checked ? 'Este aparelho agora imprime os pedidos automaticamente.' : 'Este aparelho não imprime mais automaticamente.'); };
 
   document.getElementById('btnSaveGeneral').onclick = async ()=>{
     const newCfg = {
@@ -2000,6 +2031,7 @@ async function init(){
   await loadDeliveryFee();
   await loadPrinterConfig();
   await loadOrders();
+  markExistingOrdersAsPrinted();
   firstLoad = false;
 
   const resumedCustomer = await tryResumeCustomerSession();
